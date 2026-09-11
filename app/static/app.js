@@ -302,9 +302,12 @@
       } else if (payload.generation_configured && payload.status === "ok") {
         serviceStatus.textContent = "Explanations by Gemini enabled";
         serviceStatus.dataset.state = "ok";
+      } else if (payload.generation_configured) {
+        serviceStatus.textContent = "Gemini explanations paused · exact answers only";
+        serviceStatus.dataset.state = "degraded";
       } else {
         serviceStatus.textContent = "Deterministic mode · no language model";
-        serviceStatus.dataset.state = "degraded";
+        serviceStatus.dataset.state = "ok";
       }
     } catch (_error) {
       serviceStatus.textContent = "Service status unknown";
