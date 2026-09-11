@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     inegi_api_token: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
     gemini_model: str = ""
+    # Optional. 0 disables "thinking" on models that support the setting, which
+    # cuts explanation latency sharply; leave unset to use the model default.
+    gemini_thinking_budget: int | None = Field(default=None, ge=0, le=32_768)
     embedding_model: str = DEFAULT_EMBEDDING_MODEL
     fastembed_cache_path: Path | None = None
     data_dir: Path = Path("data")
@@ -51,6 +54,12 @@ class Settings(BaseSettings):
     @classmethod
     def _strip(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value
+
+    @field_validator("gemini_thinking_budget", mode="before")
+    @classmethod
+    def _blank_is_unset(cls, value: object) -> object:
+        # `GEMINI_THINKING_BUDGET=` in a .env file means "not configured".
+        return None if isinstance(value, str) and not value.strip() else value
 
     @field_validator("log_level")
     @classmethod

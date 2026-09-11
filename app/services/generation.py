@@ -92,11 +92,13 @@ class GeminiGenerator:
         model: str,
         timeout_seconds: float,
         client: Any | None = None,
+        thinking_budget: int | None = None,
     ) -> None:
         self._api_key = api_key.strip()
         self._model = model.strip()
         self._timeout = timeout_seconds
         self._client = client
+        self._thinking_budget = thinking_budget
 
     @property
     def provider_name(self) -> str:
@@ -127,6 +129,11 @@ class GeminiGenerator:
             system_instruction=SYSTEM_INSTRUCTION,
             temperature=GENERATION_TEMPERATURE,
             max_output_tokens=MAX_OUTPUT_TOKENS,
+            thinking_config=(
+                types.ThinkingConfig(thinking_budget=self._thinking_budget)
+                if self._thinking_budget is not None
+                else None
+            ),
         )
         try:
             response = await asyncio.wait_for(

@@ -35,3 +35,5 @@ services:
         sync: false
       - key: GEMINI_MODEL
         sync: false
+      - key: GEMINI_THINKING_BUDGET
+        sync: false

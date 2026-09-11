@@ -120,6 +120,22 @@ def test_failure_categories(outcome: Any, category: str) -> None:
     assert info.value.category == category
 
 
+def test_thinking_budget_is_passed_only_when_configured() -> None:
+    models = _Models("ok")
+    generator = GeminiGenerator("fake-key", "fake-model", 5.0, client=_Client(models), thinking_budget=0)
+    asyncio.run(generator.explain("q", PAYLOAD, EVIDENCE))
+    assert models.calls[0]["config"].thinking_config.thinking_budget == 0
+
+    _, default_models = _generator("ok")
+    assert default_models.calls == []
+
+
+def test_default_generator_omits_thinking_config() -> None:
+    generator, models = _generator("ok")
+    asyncio.run(generator.explain("q", PAYLOAD, EVIDENCE))
+    assert models.calls[0]["config"].thinking_config is None
+
+
 def test_timeout_via_wait_for() -> None:
     generator, _ = _generator("late", delay=0.2, timeout=0.05)
     with pytest.raises(GenerationError) as info:

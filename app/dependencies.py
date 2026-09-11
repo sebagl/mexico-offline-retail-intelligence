@@ -41,7 +41,12 @@ def default_embedder(settings: Settings) -> EmbeddingProvider:
 
 def default_generator(settings: Settings) -> AnswerGenerator:
     key = settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else ""
-    return GeminiGenerator(key, settings.gemini_model, settings.request_timeout_seconds)
+    return GeminiGenerator(
+        key,
+        settings.gemini_model,
+        settings.request_timeout_seconds,
+        thinking_budget=settings.gemini_thinking_budget,
+    )
 
 
 def _load_and_verify(settings: Settings, embedder: EmbeddingProvider) -> Dataset:

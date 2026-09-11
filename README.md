@@ -144,7 +144,7 @@ Establishment names appear only in `examples` answers and in the bounded sample 
 
 ## 8. Optional Gemini explanation
 
-Set `GEMINI_API_KEY` and `GEMINI_MODEL` (no model is hard-coded). Gemini receives a JSON payload with the intent, filters, calculated metrics, the deterministic answer and the dataset scope, plus the retrieved evidence, and is instructed:
+Set `GEMINI_API_KEY` and `GEMINI_MODEL` (no model is hard-coded). Optionally set `GEMINI_THINKING_BUDGET=0` to disable "thinking" on models that support it: the call only rephrases pre-computed numbers, so thinking adds seconds of latency and nothing else. Gemini receives a JSON payload with the intent, filters, calculated metrics, the deterministic answer and the dataset scope, plus the retrieved evidence, and is instructed:
 
 > Use only the supplied structured analysis and retrieved evidence. Every numeric value has already been calculated by the application and must be reproduced exactly. Do not calculate, estimate, correct, or replace any value. Do not use outside knowledge.
 
