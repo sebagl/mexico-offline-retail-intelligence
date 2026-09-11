@@ -137,7 +137,8 @@ def _register_error_handlers(app: FastAPI) -> None:
 
 
 def _register_routes(app: FastAPI) -> None:
-    @app.get("/", include_in_schema=False)
+    # HEAD is included because Render probes the root with HEAD before marking the deploy live.
+    @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
     async def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
 

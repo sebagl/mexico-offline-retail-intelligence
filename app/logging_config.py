@@ -47,7 +47,7 @@ def configure_logging(level: str = "INFO") -> None:
     # Uvicorn's access log duplicates our request-completion log line.
     logging.getLogger("uvicorn.access").disabled = True
     # httpx logs every outbound URL at INFO; keep only problems from libraries.
-    for noisy in ("httpx", "httpcore", "huggingface_hub", "fastembed"):
+    for noisy in ("httpx", "httpcore", "huggingface_hub", "fastembed", "google_genai"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
     for name in ("uvicorn", "uvicorn.error"):
         logging.getLogger(name).handlers.clear()

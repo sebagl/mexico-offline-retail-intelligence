@@ -8,7 +8,7 @@ Explore Mexico City's physical retail landscape using open establishment data fr
 
 Built by Sebastian Gonzalez Lonzieme as a portfolio sample for a Forward Deployed Engineering role. It shows how an ambiguous idea ("help a non-technical user explore offline retail") becomes a small, production-minded application: an official open-data API, deterministic analytics, local semantic retrieval, an optional LLM explanation layer with strict guard-rails, graceful degradation, observability, tests, Docker and a free-tier deployment.
 
-**Live demo (placeholder until deployed):** `https://mexico-offline-retail-intelligence.onrender.com`
+**Live demo:** <https://mexico-offline-retail-intelligence.onrender.com>
 
 > The demo runs on a free hosting instance and may take approximately one minute to wake up after a period of inactivity.
 
