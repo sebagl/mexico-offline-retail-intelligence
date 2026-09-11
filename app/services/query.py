@@ -11,6 +11,7 @@ import asyncio
 import logging
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -57,6 +58,7 @@ class Analysis:
     intent: str
     answer: str
     metrics: dict[str, Any] = field(default_factory=dict)
+    headline: tuple[float, ...] = ()  # values an explanation must reproduce
     supported: bool = True
     sufficient: bool = True
 
@@ -82,7 +84,15 @@ def _category_phrase(categories: tuple[str, ...]) -> str:
     return ", ".join(labels[:-1]) + " and " + labels[-1]
 
 
-def _ranked_metrics(items: list[analytics.RankedItem], label_fn) -> list[dict[str, Any]]:
+def _strata_phrase(strata: tuple[str, ...]) -> str:
+    if not strata:
+        return ""
+    return " with " + " / ".join(analytics.stratum_label(code) for code in strata) + " employed"
+
+
+def _ranked_metrics(
+    items: list[analytics.RankedItem], label_fn: Callable[[str], str]
+) -> list[dict[str, Any]]:
     return [
         {"key": item.key, "label": label_fn(item.key), "count": item.count, "share_pct": item.share}
         for item in items
@@ -93,7 +103,9 @@ def plural(count: int, noun: str = "establishment") -> str:
     return f"{fmt(count)} {noun}{'' if count == 1 else 's'}"
 
 
-def _describe_ranking(items: list[analytics.RankedItem], label_fn, ascending: bool) -> str:
+def _describe_ranking(
+    items: list[analytics.RankedItem], label_fn: Callable[[str], str], ascending: bool
+) -> str:
     if not items:
         return ""
     lead = items[0]
@@ -144,11 +156,10 @@ class QueryService:
         mode: ResponseMode
         answer = analysis.answer
         if not analysis.supported:
-            mode, answer = (
-                ("extractive", self._extractive_answer(evidence))
-                if evidence
-                else ("unsupported", UNSUPPORTED_ANSWER)
-            )
+            if evidence and _grounded_in_dataset(parsed, evidence):
+                mode, answer = "extractive", self._extractive_answer(evidence)
+            else:
+                mode, answer, evidence = "unsupported", UNSUPPORTED_ANSWER, []
         elif not analysis.sufficient:
             mode = "insufficient_data"
         else:
@@ -194,89 +205,104 @@ class QueryService:
 
     def _count(self, parsed: ParsedQuestion) -> Analysis:
         aggregates = self._dataset.aggregates
-        if parsed.strata:
-            by_stratum = analytics.count_by_stratum(
-                self._dataset.establishments, parsed.boroughs, parsed.categories
-            )
-            total = sum(by_stratum.get(code, 0) for code in parsed.strata)
-        else:
-            total = analytics.count_establishments(aggregates, parsed.boroughs, parsed.categories)
-        stratum_note = (
-            " in the "
-            + " / ".join(analytics.stratum_label(code) for code in parsed.strata)
-            + " employment range"
-            if parsed.strata
-            else ""
+        total = analytics.count_matching(
+            aggregates, self._dataset.establishments, parsed.boroughs, parsed.categories, parsed.strata
         )
         answer = (
             f"Within the configured dataset, {_borough_phrase(parsed.boroughs)} "
-            f"contain{'s' if len(parsed.boroughs) == 1 else ''} {fmt(total)} establishments "
-            f"classified as {_category_phrase(parsed.categories)}{stratum_note}."
+            f"contain{'s' if len(parsed.boroughs) == 1 else ''} {plural(total)} "
+            f"classified as {_category_phrase(parsed.categories)}{_strata_phrase(parsed.strata)}."
         )
         return Analysis(
             intent="count",
             answer=answer,
             metrics={"count": total, "dataset_total": aggregates.total},
+            headline=(total,),
         )
 
     def _percentage(self, parsed: ParsedQuestion) -> Analysis:
         aggregates = self._dataset.aggregates
-        if not parsed.boroughs and not parsed.categories:
+        records = self._dataset.establishments
+        if not parsed.boroughs and not parsed.categories and not parsed.strata:
             return Analysis(
                 intent="percentage",
-                answer="To compute a percentage, name a covered borough and/or a retail category.",
+                answer=(
+                    "To compute a percentage, name a covered borough, a retail category "
+                    "or an employment range."
+                ),
                 sufficient=False,
             )
-        part = analytics.count_establishments(aggregates, parsed.boroughs, parsed.categories)
-        if parsed.boroughs and parsed.categories:
+        part = analytics.count_matching(
+            aggregates, records, parsed.boroughs, parsed.categories, parsed.strata
+        )
+        if parsed.strata:
+            # Share of the named employment range within the borough/category selection.
+            whole = analytics.count_matching(aggregates, records, parsed.boroughs, parsed.categories)
+            whole_phrase = f"{_category_phrase(parsed.categories)} in {_borough_phrase(parsed.boroughs)}"
+            subject = f"establishments{_strata_phrase(parsed.strata)}"
+        elif parsed.boroughs and parsed.categories:
             whole = analytics.count_establishments(aggregates, parsed.boroughs)
             whole_phrase = f"all covered establishments in {_borough_phrase(parsed.boroughs)}"
+            subject = _category_phrase(parsed.categories)
         elif parsed.categories:
             whole = aggregates.total
             whole_phrase = "all establishments in the configured dataset"
+            subject = _category_phrase(parsed.categories)
         else:
             whole = aggregates.total
             whole_phrase = "all establishments in the configured dataset"
+            subject = f"establishments located in {_borough_phrase(parsed.boroughs)}"
         share = analytics.percentage(part, whole)
-        subject = (
-            _category_phrase(parsed.categories)
-            if parsed.categories
-            else f"establishments located in {_borough_phrase(parsed.boroughs)}"
-        )
         answer = (
-            f"{subject.capitalize()} account for {share}% of {whole_phrase}: "
+            f"{subject[0].upper() + subject[1:]} account for {share}% of {whole_phrase}: "
             f"{fmt(part)} of {fmt(whole)} establishments."
         )
         return Analysis(
             intent="percentage",
             answer=answer,
             metrics={"part": part, "whole": whole, "percentage": share},
+            headline=(share,),
         )
 
     def _ranking(self, parsed: ParsedQuestion) -> Analysis:
         aggregates = self._dataset.aggregates
+        records = self._dataset.establishments
         axis = parsed.rank_axis
         if axis == "auto":
             axis = "borough" if parsed.categories and not parsed.boroughs else "category"
 
+        label_fn: Callable[[str], str]
         if axis == "stratum":
-            counts = analytics.count_by_stratum(
-                self._dataset.establishments, parsed.boroughs, parsed.categories
-            )
+            counts = analytics.count_by_stratum(records, parsed.boroughs, parsed.categories, aggregates)
             items = analytics.rank_strata(counts, parsed.ascending)
             label_fn = analytics.stratum_label
             subject = "Employment-size ranges"
             scope = f"among {_category_phrase(parsed.categories)} in {_borough_phrase(parsed.boroughs)}"
         elif axis == "borough":
-            items = analytics.rank_boroughs(aggregates, parsed.categories, parsed.ascending)
+            if parsed.strata:
+                counts = analytics.count_by_axis(records, "borough", (), parsed.categories, parsed.strata)
+                items = analytics.rank_strata(
+                    {b.name: counts.get(b.name, 0) for b in BOROUGHS}, parsed.ascending
+                )
+            else:
+                items = analytics.rank_boroughs(aggregates, parsed.categories, parsed.ascending)
             label_fn = str
             subject = "Covered boroughs"
-            scope = f"by number of establishments classified as {_category_phrase(parsed.categories)}"
+            scope = (
+                f"by number of establishments classified as {_category_phrase(parsed.categories)}"
+                f"{_strata_phrase(parsed.strata)}"
+            )
         else:
-            items = analytics.rank_categories(aggregates, parsed.boroughs, parsed.ascending)
+            if parsed.strata:
+                counts = analytics.count_by_axis(records, "category", parsed.boroughs, (), parsed.strata)
+                items = analytics.rank_strata(
+                    {c.key: counts.get(c.key, 0) for c in CATEGORIES}, parsed.ascending
+                )
+            else:
+                items = analytics.rank_categories(aggregates, parsed.boroughs, parsed.ascending)
             label_fn = analytics.category_label
             subject = "Retail categories"
-            scope = f"in {_borough_phrase(parsed.boroughs)}"
+            scope = f"in {_borough_phrase(parsed.boroughs)}{_strata_phrase(parsed.strata)}"
 
         total = sum(item.count for item in items)
         if total == 0:
@@ -295,14 +321,16 @@ class QueryService:
                 "total": total,
                 "ranking": _ranked_metrics(items, label_fn),
             },
+            headline=(items[0].count,),
         )
 
     def _comparison(self, parsed: ParsedQuestion) -> Analysis:
         aggregates = self._dataset.aggregates
+        records = self._dataset.establishments
         if len(parsed.boroughs) < 2:
             if len(parsed.categories) >= 2:
                 counts = {
-                    key: analytics.count_establishments(aggregates, parsed.boroughs, (key,))
+                    key: analytics.count_matching(aggregates, records, parsed.boroughs, (key,), parsed.strata)
                     for key in parsed.categories
                 }
                 total = sum(counts.values())
@@ -312,13 +340,15 @@ class QueryService:
                     for key, value in counts.items()
                 )
                 answer = (
-                    f"In {_borough_phrase(parsed.boroughs)}, the configured dataset contains {parts} "
-                    f"(shares are relative to the {fmt(total)} establishments in these categories)."
+                    f"In {_borough_phrase(parsed.boroughs)}{_strata_phrase(parsed.strata)}, the "
+                    f"configured dataset contains {parts} (shares are relative to the {fmt(total)} "
+                    "establishments in these categories)."
                 )
                 return Analysis(
                     intent="comparison",
                     answer=answer,
                     metrics={"by_category": counts, "total": total},
+                    headline=tuple(counts.values()),
                 )
             return Analysis(
                 intent="comparison",
@@ -329,10 +359,16 @@ class QueryService:
                 sufficient=False,
             )
 
-        comparison = analytics.compare_boroughs(aggregates, parsed.boroughs, parsed.categories)
+        keys = list(parsed.categories) or list(aggregates.by_category)
         sentences = []
         metrics: dict[str, Any] = {}
-        for borough, counts in comparison.items():
+        headline: list[float] = []
+        for borough in parsed.boroughs:
+            if parsed.strata:
+                by_category = analytics.count_by_axis(records, "category", (borough,), keys, parsed.strata)
+                counts = {key: by_category.get(key, 0) for key in keys}
+            else:
+                counts = analytics.compare_boroughs(aggregates, (borough,), parsed.categories)[borough]
             total = sum(counts.values())
             top = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[:3]
             top_text = ", ".join(
@@ -340,17 +376,24 @@ class QueryService:
                 f"({analytics.percentage(value, total)}%)"
                 for key, value in top
             )
-            sentences.append(f"{borough} has {fmt(total)} establishments; largest categories: {top_text}")
+            sentences.append(f"{borough} has {plural(total)}; largest categories: {top_text}")
             metrics[borough] = {
                 "total": total,
                 "by_category": counts,
                 "share_pct": {key: analytics.percentage(value, total) for key, value in counts.items()},
             }
-        answer = "Comparison within the configured dataset. " + ". ".join(sentences) + "."
-        return Analysis(intent="comparison", answer=answer, metrics=metrics)
+            headline.append(total)
+        answer = (
+            f"Comparison within the configured dataset{_strata_phrase(parsed.strata)}. "
+            + ". ".join(sentences)
+            + "."
+        )
+        return Analysis(intent="comparison", answer=answer, metrics=metrics, headline=tuple(headline))
 
     def _distribution(self, parsed: ParsedQuestion) -> Analysis:
-        counts = analytics.count_by_stratum(self._dataset.establishments, parsed.boroughs, parsed.categories)
+        counts = analytics.count_by_stratum(
+            self._dataset.establishments, parsed.boroughs, parsed.categories, self._dataset.aggregates
+        )
         total = sum(counts.values())
         if total == 0:
             return Analysis(intent="distribution", answer=INSUFFICIENT_ANSWER, sufficient=False)
@@ -369,14 +412,19 @@ class QueryService:
             intent="distribution",
             answer=answer,
             metrics={"total": total, "by_stratum": _ranked_metrics(items, analytics.stratum_label)},
+            headline=(total, items[0].count),
         )
 
     def _examples(self, parsed: ParsedQuestion) -> Analysis:
         records = analytics.example_establishments(
-            self._dataset.establishments, parsed.boroughs, parsed.categories
+            self._dataset.establishments, parsed.boroughs, parsed.categories, parsed.strata
         )
-        matching = analytics.count_establishments(
-            self._dataset.aggregates, parsed.boroughs, parsed.categories
+        matching = analytics.count_matching(
+            self._dataset.aggregates,
+            self._dataset.establishments,
+            parsed.boroughs,
+            parsed.categories,
+            parsed.strata,
         )
         if not records:
             return Analysis(intent="examples", answer=INSUFFICIENT_ANSWER, sufficient=False)
@@ -386,13 +434,14 @@ class QueryService:
             for record in records
         ]
         answer = (
-            f"Examples of {_category_phrase(parsed.categories)} in {_borough_phrase(parsed.boroughs)} "
-            f"(a deterministic sample of {len(records)} of {fmt(matching)} matching establishments, "
-            "sorted by name):\n" + "\n".join(lines)
+            f"Examples of {_category_phrase(parsed.categories)} in {_borough_phrase(parsed.boroughs)}"
+            f"{_strata_phrase(parsed.strata)} (a deterministic sample of {len(records)} of "
+            f"{fmt(matching)} matching establishments, sorted by name):\n" + "\n".join(lines)
         )
         return Analysis(
             intent="examples",
             answer=answer,
+            headline=(matching,),
             metrics={
                 "matching": matching,
                 "sample_size": len(records),
@@ -415,7 +464,11 @@ class QueryService:
     # ------------------------------------------------------------------ #
 
     def _retrieve_evidence(self, question: str, parsed: ParsedQuestion) -> list[Evidence]:
-        documents = self._retrieval.retrieve(question, parsed.boroughs, parsed.categories)
+        # Knowledge documents are English; appending the canonical English names of the
+        # detected boroughs/categories lets Spanish questions reach the same documents.
+        hints = [*parsed.boroughs, *(analytics.category_label(k) for k in parsed.categories)]
+        query = question if not hints else f"{question} ({', '.join(hints)})"
+        documents = self._retrieval.retrieve(query, parsed.boroughs, parsed.categories)
         return [
             Evidence(
                 kind=d.kind, text=d.text, score=round(d.score, 3), borough=d.borough, category=d.category
@@ -452,7 +505,7 @@ class QueryService:
         payload = self._payload(parsed, analysis)
         started = time.perf_counter()
         try:
-            text = await self._generator.explain(question, payload, evidence)
+            text = await self._generator.explain(question, payload)
         except GenerationError as exc:
             self._generation_status.record_failure(exc.category)
             logger.warning(
@@ -460,9 +513,10 @@ class QueryService:
                 extra={"provider": self._generator.provider_name, "category": exc.category},
             )
             return None
-        if not numbers_consistent(text, payload):
-            self._generation_status.record_failure("inconsistent_numbers")
-            logger.warning("explanation introduced numbers absent from the analysis; discarded")
+        problem = explanation_problem(text, analysis)
+        if problem is not None:
+            self._generation_status.record_failure(f"explanation_{problem}")
+            logger.warning("explanation discarded", extra={"reason": problem})
             return None
         self._generation_status.record_success()
         logger.info("explanation generated", extra={"generation_ms": _elapsed_ms(started)})
@@ -528,22 +582,60 @@ class QueryService:
         )
 
 
-def numbers_consistent(text: str, payload: dict[str, Any]) -> bool:
-    """True when every number in *text* also appears somewhere in *payload*."""
+_URL_OR_DOMAIN = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(?:com|org|net|mx|io|gob|edu)\b", re.I)
+_NUMBER_WORDS = re.compile(
+    r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|"
+    r"sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|"
+    r"hundred|thousand|million|dozen|half|quarter|third|"
+    r"uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|veinte|treinta|cuarenta|"
+    r"cincuenta|cien|ciento|mil|millon|millones|docena|mitad|tercio|cuarto)\b",
+    re.I,
+)
+_ENDORSEMENT = re.compile(r"official|endorse|approved|certified|avalad|oficial", re.I)
+MAX_EXPLANATION_CHARS = 900
+
+
+def _number_forms(value: float) -> set[str]:
+    """Every textual form a calculated value may legitimately take in prose."""
+    if float(value).is_integer():
+        integer = int(value)
+        grouped = f"{integer:,}"
+        return {str(integer), grouped, grouped.replace(",", "."), grouped.replace(",", " ")}
+    text = f"{value:.1f}".rstrip("0").rstrip(".")
+    return {text, text.replace(".", ",")}
+
+
+def _digits(text: str) -> str:
+    return re.sub(r"[^0-9]", "", text)
+
+
+def explanation_problem(text: str, analysis: Analysis) -> str | None:
+    """Return why a generated explanation must be discarded, or ``None`` if it is faithful.
+
+    Only calculated values (``metrics`` and the deterministic answer) may appear as
+    numbers; every headline value must appear; no spelled-out numbers, URLs or
+    endorsement language; bounded length. Timestamps and catalog labels are
+    deliberately not part of the allowed set.
+    """
+    if len(text) > MAX_EXPLANATION_CHARS:
+        return "too_long"
+    if _URL_OR_DOMAIN.search(text):
+        return "contains_url"
+    if _NUMBER_WORDS.search(text):
+        return "spelled_out_number"
+    if _ENDORSEMENT.search(text):
+        return "endorsement_language"
+
     allowed: set[str] = set()
-    for match in _NUMBER.findall(_flatten(payload)):
-        cleaned = match.replace(",", "")
-        allowed.add(cleaned)
-        if "." in cleaned:
-            allowed.add(cleaned.rstrip("0").rstrip("."))
-        else:
-            allowed.add(f"{int(cleaned):,}")
+    for match in _NUMBER.findall(_flatten(analysis.metrics) + " " + analysis.answer):
+        allowed |= {_digits(form) for form in _number_forms(float(match.replace(",", "")))}
     for match in _NUMBER.findall(text):
-        cleaned = match.replace(",", "")
-        candidates = {cleaned, cleaned.rstrip("0").rstrip(".") if "." in cleaned else cleaned}
-        if not candidates & allowed:
-            return False
-    return True
+        if _digits(match) not in allowed:
+            return "foreign_number"
+    for value in analysis.headline:
+        if not any(form in text for form in _number_forms(value)):
+            return "headline_missing"
+    return None
 
 
 def _flatten(value: Any) -> str:
@@ -552,6 +644,15 @@ def _flatten(value: Any) -> str:
     if isinstance(value, list | tuple):
         return " ".join(_flatten(v) for v in value)
     return str(value)
+
+
+def _grounded_in_dataset(parsed: ParsedQuestion, evidence: list[Evidence]) -> bool:
+    """Extractive answers need an anchor beyond similarity: a catalog entity in the
+    question, or an aggregate document as the strongest hit. A small embedding
+    model scores unrelated text too close to relevant text to trust the score alone."""
+    if parsed.boroughs or parsed.categories:
+        return True
+    return evidence[0].kind == "aggregate"
 
 
 def _elapsed_ms(started: float) -> int:

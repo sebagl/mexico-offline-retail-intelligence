@@ -91,9 +91,6 @@ PAGE_SIZE = 1000
 REQUEST_DELAY_SECONDS = 0.3
 MAX_RETRIES = 3
 SAMPLES_PER_SCOPE = 10  # establishment descriptions embedded per borough x category
-# Loose bounding box for Ciudad de México; coordinates outside are dropped.
-LAT_RANGE = (19.0, 19.7)
-LON_RANGE = (-99.4, -98.9)
 
 
 @dataclass
@@ -150,7 +147,8 @@ class DenueClient:
                 last_error = f"http_{response.status_code}"
                 if 400 <= response.status_code < 500 and response.status_code != 429:
                     break
-            await asyncio.sleep(min(2.0**attempt, 8.0))
+            if attempt < MAX_RETRIES:
+                await asyncio.sleep(min(2.0**attempt, 8.0))
         raise RuntimeError(last_error)
 
     async def cuantificar(self, scian_class: str, geo_code: str) -> int | None:
@@ -247,12 +245,14 @@ async def fetch_all(token: str) -> list[ScopeResult]:
 # Normalization and minimization
 # --------------------------------------------------------------------------- #
 
-_STRATUM_BY_LABEL = {_label.lower(): code for code, _label in EMPLOYMENT_STRATA.items()}
 
-
-def fold(text: str) -> str:
+def fold_label(text: str) -> str:
+    """Case- and accent-insensitive form of a label (punctuation kept)."""
     stripped = "".join(ch for ch in unicodedata.normalize("NFKD", text) if not unicodedata.combining(ch))
     return re.sub(r"\s+", " ", stripped.lower()).strip()
+
+
+_STRATUM_BY_LABEL = {fold_label(_label): code for code, _label in EMPLOYMENT_STRATA.items()}
 
 
 def _clean(value: Any) -> str:
@@ -263,21 +263,7 @@ def _stratum_code(value: Any) -> str | None:
     text = _clean(value)
     if text in EMPLOYMENT_STRATA:
         return text
-    folded = fold(text)
-    for label, code in _STRATUM_BY_LABEL.items():
-        if fold(label) == folded:
-            return code
-    return None
-
-
-def _coordinate(value: Any, valid_range: tuple[float, float]) -> float | None:
-    try:
-        number = float(str(value).strip())
-    except (TypeError, ValueError):
-        return None
-    if not (valid_range[0] <= number <= valid_range[1]):
-        return None
-    return round(number, 6)
+    return _STRATUM_BY_LABEL.get(fold_label(text))
 
 
 def normalize_record(raw: dict[str, Any], borough: Borough, scian_class: str) -> EstablishmentRecord | None:
@@ -304,8 +290,6 @@ def normalize_record(raw: dict[str, Any], borough: Borough, scian_class: str) ->
         borough_code=borough.code,
         borough=borough.name,
         locality=_clean(raw.get("Colonia")),
-        latitude=_coordinate(raw.get("Latitud"), LAT_RANGE),
-        longitude=_coordinate(raw.get("Longitud"), LON_RANGE),
         establishment_type=_clean(raw.get("Tipo")),
         source_date=_clean(raw.get("Fecha_Alta")) or None,
     )
@@ -317,19 +301,19 @@ def normalize_all(results: list[ScopeResult]) -> tuple[list[EstablishmentRecord]
     dropped = 0
     duplicates = 0
     for result in results:
-        expected_label = fold(
+        expected_label = fold_label(
             CATEGORY_BY_SCIAN_CLASS[result.scian_class].official_labels[
                 CATEGORY_BY_SCIAN_CLASS[result.scian_class].scian_classes.index(result.scian_class)
             ]
         )
-        borough_name = fold(result.borough.name)
+        borough_name = fold_label(result.borough.name)
         for raw in result.records:
             class_id = _clean(raw.get("CLASE_ACTIVIDAD_ID"))
             if class_id and class_id != result.scian_class:
                 dropped += 1
                 continue
             # Ubicacion is checked in flight and then discarded (never stored).
-            location = fold(_clean(raw.get("Ubicacion")))
+            location = fold_label(_clean(raw.get("Ubicacion")))
             if location and borough_name not in location:
                 result.borough_mismatches += 1
                 dropped += 1
@@ -338,7 +322,7 @@ def normalize_all(results: list[ScopeResult]) -> tuple[list[EstablishmentRecord]
             if record is None:
                 dropped += 1
                 continue
-            if fold(record.activity_label) != expected_label:
+            if fold_label(record.activity_label) != expected_label:
                 result.label_mismatches[record.activity_label] += 1
             if record.id in records:
                 duplicates += 1

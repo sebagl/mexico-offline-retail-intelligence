@@ -98,15 +98,6 @@ class FastEmbedProvider:
     def model_name(self) -> str:
         return self._model_name
 
-    @property
-    def dimension(self) -> int | None:
-        """Dimension observed from real output; ``None`` until first use."""
-        return self._dimension
-
-    def load(self) -> None:
-        """Eagerly load the model (used at startup and during the Docker build)."""
-        self._get_model()
-
     def _get_model(self):
         if self._model is None:
             from fastembed import TextEmbedding

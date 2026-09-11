@@ -2,7 +2,7 @@
  "schema_version": 1,
  "source_name": "INEGI, Directorio Estadístico Nacional de Unidades Económicas (DENUE)",
  "source_url": "https://www.inegi.org.mx/servicios/api_denue.html",
- "retrieved_at": "2026-09-11T01:45:11+00:00",
+ "retrieved_at": "2026-09-11T03:13:45+00:00",
  "dataset_update_date": "2026-04",
  "geographic_scope": {
   "entity_code": "09",
@@ -123,7 +123,7 @@
  "embedding_provider": "fastembed",
  "embedding_model": "BAAI/bge-small-en-v1.5",
  "embedding_dimension": 384,
- "data_checksum": "sha256:bc5f651f027d2e11629decb875323813ed9089d9aac97f29d11ccee6e6b21cfb",
+ "data_checksum": "sha256:3d254f98143753d77b564821d3a36e64251cc82ac5f6547c01d9b604be620e6d",
  "complete": true,
  "completeness_note": "All configured borough/activity scopes were retrieved and match the DENUE Cuantificar totals.",
  "failed_scopes": [],

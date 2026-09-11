@@ -19,9 +19,9 @@ def test_health_ok_when_dataset_and_generator_available(make_client) -> None:
     assert body["fallback_available"] is True
 
 
-def test_health_degraded_without_generator(client) -> None:
+def test_health_ok_without_generator(client) -> None:
     body = client.get("/health").json()
-    assert body["status"] == "degraded"
+    assert body["status"] == "ok"  # Gemini is optional; its absence is the documented default
     assert body["generation_configured"] is False
     assert body["generation_provider"] == "none"
     assert body["fallback_available"] is True
@@ -37,7 +37,9 @@ def test_health_degraded_after_recent_generation_failure(make_client) -> None:
 
 def test_health_unavailable_when_dataset_missing(make_client, tmp_path: Path) -> None:
     client = make_client(settings=make_settings(tmp_path / "missing"))
-    body = client.get("/health").json()
+    response = client.get("/health")
+    assert response.status_code == 503  # keeps a broken deploy out of rotation
+    body = response.json()
     assert body["status"] == "unavailable"
     assert body["dataset_loaded"] is False
     assert body["establishments"] == 0

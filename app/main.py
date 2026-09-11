@@ -91,6 +91,11 @@ def create_app(
             "Mexico City boroughs. " + TRANSFORMATION_NOTICE
         ),
         lifespan=lifespan,
+        # The interactive docs load scripts from a CDN that the CSP blocks; the
+        # API surface is small and documented in the README instead.
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
 
     # Middleware order: the last one added runs outermost.
@@ -130,11 +135,6 @@ def _register_error_handlers(app: FastAPI) -> None:
         code = "not_found" if exc.status_code == 404 else "http_error"
         return _error_response(exc.status_code, code, str(exc.detail))
 
-    @app.exception_handler(Exception)
-    async def handle_unexpected(_: Request, exc: Exception) -> JSONResponse:
-        logger.exception("unhandled error", extra={"error_type": exc.__class__.__name__})
-        return _error_response(500, "internal_error", "An unexpected error occurred.")
-
 
 def _register_routes(app: FastAPI) -> None:
     # HEAD is included because Render probes the root with HEAD before marking the deploy live.
@@ -142,18 +142,26 @@ def _register_routes(app: FastAPI) -> None:
     async def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html", media_type="text/html")
 
-    @app.get("/health", response_model=HealthResponse, tags=["operations"])
-    async def health(state: AppState = Depends(get_state)) -> HealthResponse:
+    @app.get(
+        "/health",
+        response_model=HealthResponse,
+        responses={503: {"model": HealthResponse}},
+        tags=["operations"],
+    )
+    async def health(state: AppState = Depends(get_state)) -> JSONResponse:
+        """``ok``: dataset loaded and no recent explanation failure (Gemini is optional, so
+        running without it is still ``ok``). ``degraded``: dataset loaded but the configured
+        Gemini failed recently. ``unavailable`` (HTTP 503): the dataset did not load, so
+        platform health checks keep the deploy out of rotation."""
         generation_configured = state.generator.is_configured
-        generation_healthy = generation_configured and state.generation_status.recent_failure is None
         if not state.ready:
             status = "unavailable"
-        elif generation_healthy:
-            status = "ok"
-        else:
+        elif generation_configured and state.generation_status.recent_failure is not None:
             status = "degraded"
+        else:
+            status = "ok"
         manifest = state.dataset.manifest if state.dataset else None
-        return HealthResponse(
+        body = HealthResponse(
             status=status,
             dataset_loaded=state.dataset is not None,
             establishments=state.dataset.record_count if state.dataset else 0,
@@ -165,6 +173,9 @@ def _register_routes(app: FastAPI) -> None:
             generation_provider=state.generator.provider_name if generation_configured else "none",
             generation_configured=generation_configured,
             fallback_available=state.ready,
+        )
+        return JSONResponse(
+            status_code=503 if status == "unavailable" else 200, content=body.model_dump(mode="json")
         )
 
     @app.get(

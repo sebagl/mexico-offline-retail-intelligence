@@ -52,8 +52,6 @@ class EstablishmentRecord(BaseModel):
     borough_code: str = Field(..., pattern=r"^\d{3}$")
     borough: str = Field(..., min_length=1)
     locality: str
-    latitude: float | None = None
-    longitude: float | None = None
     establishment_type: str
     source_date: str | None = None
 

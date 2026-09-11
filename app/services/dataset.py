@@ -47,6 +47,8 @@ FORBIDDEN_FIELDS = frozenset(
         "tipo_vialidad",
         "cp",
         "ubicacion",
+        "latitud",
+        "longitud",
     }
 )
 
@@ -77,8 +79,6 @@ class Establishment:
     borough_code: str
     borough: str
     locality: str
-    latitude: float | None
-    longitude: float | None
     establishment_type: str
     source_date: str | None
 
@@ -198,8 +198,6 @@ def _to_rows(records: list[EstablishmentRecord]) -> tuple[Establishment, ...]:
             intern(r.borough_code),
             intern(r.borough),
             intern(r.locality),
-            r.latitude,
-            r.longitude,
             intern(r.establishment_type),
             intern(r.source_date) if r.source_date is not None else None,
         )

@@ -71,7 +71,14 @@ CATEGORIES: tuple[Category, ...] = (
         label_es="Minisúpers",
         scian_classes=("462112",),
         official_labels=("Comercio al por menor en minisupers",),
-        aliases=("convenience", "convenience store", "minisuper", "minisúper", "minisupers", "oxxo"),
+        aliases=(
+            "convenience",
+            "convenience store",
+            "convenience stores",
+            "minisuper",
+            "minisúper",
+            "minisupers",
+        ),
     ),
     Category(
         key="supermarket",
@@ -79,7 +86,7 @@ CATEGORIES: tuple[Category, ...] = (
         label_es="Supermercados",
         scian_classes=("462111",),
         official_labels=("Comercio al por menor en supermercados",),
-        aliases=("supermarket", "supermarkets", "supermercado", "supermercados", "super"),
+        aliases=("supermarket", "supermarkets", "supermercado", "supermercados"),
     ),
     Category(
         key="pharmacy",

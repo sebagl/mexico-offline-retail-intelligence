@@ -55,9 +55,11 @@ def test_malformed_json_is_422_with_error_format(client) -> None:
 
 def test_repetitive_input_is_handled_safely(client) -> None:
     response = client.post("/api/query", json={"question": "grocery grocery grocery " * 15})
-    assert response.status_code in (200, 400)
-    if response.status_code == 200:
-        assert response.json()["mode"] in {"unsupported", "extractive", "deterministic"}
+    assert response.status_code == 200  # 360 chars: within the limit, no intent cue
+    body = response.json()
+    assert body["intent"] == "unknown"
+    assert body["mode"] in {"unsupported", "extractive"}
+    assert body["filters"]["categories"] == ["Grocery stores"]
 
 
 def test_oversized_body_is_413(make_client, data_dir: Path) -> None:

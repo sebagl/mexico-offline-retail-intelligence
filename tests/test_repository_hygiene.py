@@ -1,4 +1,4 @@
-"""Repository-level guarantees: no prior-project data, no contact fields, attribution present."""
+"""Repository-level guarantees: approved hosts only, no contact data, attribution present."""
 
 import json
 import re
@@ -10,45 +10,65 @@ from app.schemas import TRANSFORMATION_NOTICE
 from app.services.dataset import ESTABLISHMENTS_FILE, FORBIDDEN_FIELDS, MANIFEST_FILE
 
 ROOT = Path(__file__).resolve().parent.parent
-SKIP_DIRS = {".venv", "venv", "__pycache__", ".git", ".pytest_cache", ".ruff_cache", ".cache", "node_modules"}
-# Terms from the project's previous incarnation that must not reappear anywhere.
-FORBIDDEN_TERMS = ("native.io", "native-public", "Native Public Knowledge", "frontline research")
+SKIP_DIRS = {".venv", "venv", "__pycache__", ".git", ".pytest_cache", ".ruff_cache", ".cache", ".claude"}
+SOURCE_SUFFIXES = {
+    ".py",
+    ".md",
+    ".html",
+    ".js",
+    ".css",
+    ".json",
+    ".yml",
+    ".yaml",
+    ".toml",
+    ".txt",
+    ".example",
+    "",
+}
+# Every hostname the repository may reference. Anything else (a scraped site, a
+# leftover URL from another project, a tracking domain) fails this test.
+ALLOWED_HOSTS = {
+    "www.inegi.org.mx",
+    "inegi.org.mx",
+    "github.com",
+    "render.com",
+    "dashboard.render.com",
+    "mexico-offline-retail-intelligence.onrender.com",
+    "docs.docker.com",
+    "errors.pydantic.dev",
+    "claude.com",
+    "127.0.0.1",
+    "localhost",
+    "testserver",
+    "evil.example",  # used by tests as a deliberately unsafe host
+    "www.example.invalid",
+    "example.invalid",
+}
+HOST = re.compile(r"https?://([A-Za-z0-9.-]+)|\bwww\.[A-Za-z0-9.-]+")
 EMAIL = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 PHONE = re.compile(r"(?<!\d)\d{10}(?!\d)")
 
 
 def _repo_files() -> list[Path]:
-    files: list[Path] = []
-    for path in ROOT.rglob("*"):
-        if any(part in SKIP_DIRS for part in path.parts):
-            continue
-        if path.is_file() and path.suffix in {
-            ".py",
-            ".md",
-            ".html",
-            ".js",
-            ".css",
-            ".json",
-            ".yml",
-            ".yaml",
-            ".toml",
-            ".txt",
-            ".example",
-            "",
-        }:
-            files.append(path)
-    return files
+    return [
+        path
+        for path in ROOT.rglob("*")
+        if path.is_file()
+        and not any(part in SKIP_DIRS for part in path.parts)
+        and path.suffix in SOURCE_SUFFIXES
+        and not path.name.startswith(".env")
+        and path.parent != ROOT / "data"
+    ]
 
 
-def test_no_previous_project_terms_anywhere() -> None:
+def test_only_approved_hosts_are_referenced() -> None:
     offenders = []
     for path in _repo_files():
-        if path == Path(__file__):
-            continue
-        text = path.read_text(encoding="utf-8", errors="ignore").lower()
-        for term in FORBIDDEN_TERMS:
-            if term.lower() in text:
-                offenders.append(f"{path.relative_to(ROOT)}: {term}")
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for match in HOST.finditer(text):
+            host = (match.group(1) or match.group(0)).lower().rstrip(".")
+            if host not in ALLOWED_HOSTS:
+                offenders.append(f"{path.relative_to(ROOT)}: {host}")
     assert offenders == []
 
 
@@ -79,6 +99,7 @@ def test_production_dataset_is_minimized_and_attributed() -> None:
     assert records
     for record in records[:2000]:
         assert not (FORBIDDEN_FIELDS & {k.lower() for k in record})
+        assert "latitude" not in record and "longitude" not in record
         blob = " ".join(str(v) for v in record.values())
         assert not EMAIL.search(blob), record["id"]
         assert not PHONE.search(blob), record["id"]

@@ -53,22 +53,73 @@ def count_establishments(
     return sum(aggregates.by_borough_category.get(b, {}).get(c, 0) for b in boroughs for c in categories)
 
 
+def matches(
+    record: EstablishmentLike,
+    boroughs: Sequence[str] = (),
+    categories: Sequence[str] = (),
+    strata: Sequence[str] = (),
+) -> bool:
+    return (
+        (not boroughs or record.borough in boroughs)
+        and (not categories or record.category in categories)
+        and (not strata or record.stratum in strata)
+    )
+
+
+def count_matching(
+    aggregates: Aggregates,
+    records: Iterable[EstablishmentLike],
+    boroughs: Sequence[str] = (),
+    categories: Sequence[str] = (),
+    strata: Sequence[str] = (),
+) -> int:
+    """Exact count for any filter; uses precomputed aggregates unless strata are involved."""
+    if not strata:
+        return count_establishments(aggregates, boroughs, categories)
+    return sum(1 for record in records if matches(record, boroughs, categories, strata))
+
+
 def count_by_stratum(
     records: Iterable[EstablishmentLike],
     boroughs: Sequence[str] = (),
     categories: Sequence[str] = (),
+    aggregates: Aggregates | None = None,
 ) -> dict[str, int]:
-    """Employment-size distribution for an arbitrary filter, scanning records."""
-    borough_set = set(boroughs)
-    category_set = set(categories)
+    """Employment-size distribution for a filter.
+
+    Single-dimension filters are served from the precomputed pairwise
+    aggregates; only borough x category combinations scan the records.
+    """
+    counts: Counter[str] = Counter()
+    if aggregates is not None and not (boroughs and categories):
+        if boroughs:
+            for borough in boroughs:
+                counts.update(aggregates.by_borough_stratum.get(borough, {}))
+        elif categories:
+            for category in categories:
+                counts.update(aggregates.by_category_stratum.get(category, {}))
+        else:
+            counts.update(aggregates.by_stratum)
+    else:
+        for record in records:
+            if matches(record, boroughs, categories):
+                counts[record.stratum] += 1
+    return {code: counts.get(code, 0) for code in EMPLOYMENT_STRATA}
+
+
+def count_by_axis(
+    records: Iterable[EstablishmentLike],
+    axis: str,
+    boroughs: Sequence[str] = (),
+    categories: Sequence[str] = (),
+    strata: Sequence[str] = (),
+) -> dict[str, int]:
+    """Counts grouped by ``borough`` or ``category`` under an arbitrary filter (record scan)."""
     counts: Counter[str] = Counter()
     for record in records:
-        if borough_set and record.borough not in borough_set:
-            continue
-        if category_set and record.category not in category_set:
-            continue
-        counts[record.stratum] += 1
-    return {code: counts.get(code, 0) for code in EMPLOYMENT_STRATA}
+        if matches(record, boroughs, categories, strata):
+            counts[getattr(record, axis)] += 1
+    return dict(counts)
 
 
 def rank_boroughs(
@@ -118,19 +169,13 @@ def example_establishments(
     records: Iterable[EstablishmentLike],
     boroughs: Sequence[str] = (),
     categories: Sequence[str] = (),
+    strata: Sequence[str] = (),
     limit: int = MAX_EXAMPLES,
 ) -> list[EstablishmentLike]:
     """A deterministic sample: the first ``limit`` matches by name then id."""
-    borough_set = set(boroughs)
-    category_set = set(categories)
-    matches = [
-        record
-        for record in records
-        if (not borough_set or record.borough in borough_set)
-        and (not category_set or record.category in category_set)
-    ]
-    matches.sort(key=lambda record: (record.name.casefold(), record.id))
-    return matches[:limit]
+    selected = [record for record in records if matches(record, boroughs, categories, strata)]
+    selected.sort(key=lambda record: (record.name.casefold(), record.id))
+    return selected[:limit]
 
 
 def category_label(key: str) -> str:

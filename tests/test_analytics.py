@@ -75,6 +75,23 @@ def test_compare_boroughs() -> None:
     }
 
 
+def test_count_matching_with_strata_scans_records() -> None:
+    assert analytics.count_matching(AGG, RECORDS, categories=("pharmacy",), strata=("2",)) == 2
+    assert analytics.count_matching(AGG, RECORDS, boroughs=("Coyoacán",), strata=("1", "2")) == 6
+    assert analytics.count_matching(AGG, RECORDS, boroughs=("Coyoacán",)) == 6  # aggregate path
+    assert analytics.count_by_axis(RECORDS, "borough", categories=("pharmacy",), strata=("2",)) == {
+        "Benito Juárez": 1,
+        "Miguel Hidalgo": 1,
+    }
+
+
+def test_stratum_distribution_aggregate_fast_path_matches_scan() -> None:
+    for kwargs in ({"boroughs": ("Coyoacán",)}, {"categories": ("pharmacy",)}, {}):
+        assert analytics.count_by_stratum(RECORDS, aggregates=AGG, **kwargs) == analytics.count_by_stratum(
+            RECORDS, **kwargs
+        )
+
+
 def test_stratum_distribution_matches_aggregates() -> None:
     counts = analytics.count_by_stratum(RECORDS, categories=("pharmacy",))
     assert sum(counts.values()) == 9

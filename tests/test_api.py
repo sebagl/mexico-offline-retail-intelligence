@@ -61,12 +61,29 @@ def test_unexpected_error_is_generic(client, monkeypatch) -> None:
     assert response.json()["error"] == {"code": "internal_error", "message": "An unexpected error occurred."}
     assert "secret internal detail" not in response.text
     assert "Traceback" not in response.text
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert len(response.headers["x-request-id"]) == 16
 
 
 def test_not_found_uses_error_format(client) -> None:
     response = client.get("/api/does-not-exist")
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "not_found"
+
+
+def test_docs_are_disabled(client) -> None:
+    for path in ("/docs", "/redoc", "/openapi.json"):
+        assert client.get(path).status_code == 404
+
+
+def test_forwarded_ip_is_validated(make_client, data_dir: Path) -> None:
+    from app.middleware import resolve_client_ip
+
+    scope = {"headers": [(b"x-forwarded-for", b"1.2.3.4, 10.0.0.9")], "client": ("127.0.0.1", 1)}
+    assert resolve_client_ip(scope, trust_proxy_headers=True) == "10.0.0.9"
+    assert resolve_client_ip(scope, trust_proxy_headers=False) == "127.0.0.1"
+    bad = {"headers": [(b"x-forwarded-for", b"not-an-ip")], "client": ("127.0.0.1", 1)}
+    assert resolve_client_ip(bad, trust_proxy_headers=True) == "127.0.0.1"
 
 
 def test_cors_allows_configured_origin_only(client) -> None:

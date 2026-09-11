@@ -96,6 +96,21 @@ def test_malformed_json_is_controlled(data_dir: Path) -> None:
         load_dataset(data_dir, FAKE_MODEL_NAME)
 
 
+def test_failed_staging_validation_leaves_previous_dataset_intact(data_dir: Path) -> None:
+    from scripts.ingest_denue import build_artifacts, write_artifacts
+    from tests.conftest import FakeEmbedder, synthetic_records
+
+    before = {p.name: p.read_bytes() for p in data_dir.iterdir()}
+    manifest, establishments, aggregates, knowledge = build_artifacts(
+        [], synthetic_records(), FakeEmbedder(), "2026-02-01T00:00:00+00:00"
+    )
+    aggregates.total = 999  # corrupt one artifact so the staged set fails re-validation
+    with pytest.raises(DatasetError):
+        write_artifacts(data_dir, manifest, establishments, aggregates, knowledge)
+    assert {p.name: p.read_bytes() for p in data_dir.iterdir()} == before
+    assert not list(data_dir.glob(".staging-*"))
+
+
 def test_atomic_write_replaces_file(tmp_path: Path) -> None:
     target = tmp_path / "file.json"
     write_bytes_atomic(target, b"first")

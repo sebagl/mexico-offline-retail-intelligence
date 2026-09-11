@@ -1,5 +1,6 @@
 """ASGI middleware: request IDs, request logging, body-size limit, rate limiting."""
 
+import ipaddress
 import json
 import logging
 import threading
@@ -41,6 +42,7 @@ async def _send_json_error(send: Send, status: int, code: str, message: str, req
                 (b"content-type", b"application/json"),
                 (b"content-length", str(len(body)).encode()),
                 (REQUEST_ID_HEADER, request_id.encode()),
+                *SECURITY_HEADERS,
             ],
         }
     )
@@ -52,6 +54,8 @@ class RequestContextMiddleware:
 
     Client-supplied ``X-Request-ID`` values are ignored on purpose: accepting
     them would let a caller inject arbitrary strings into structured logs.
+    Unhandled exceptions are converted here into the generic error envelope so
+    that even a 500 carries the request ID and security headers.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -78,6 +82,13 @@ class RequestContextMiddleware:
 
         try:
             await self.app(scope, receive, send_with_headers)
+        except Exception:
+            logger.exception("unhandled error", extra={"path": scope.get("path", "")})
+            if status_holder["status"] == 0:
+                status_holder["status"] = 500
+                await _send_json_error(
+                    send, 500, "internal_error", "An unexpected error occurred.", request_id
+                )
         finally:
             path = scope.get("path", "")
             if not path.startswith("/static"):
@@ -162,16 +173,19 @@ def resolve_client_ip(scope: Scope, trust_proxy_headers: bool) -> str:
 
     Behind Render's proxy the socket peer is the load balancer, so the
     right-most ``X-Forwarded-For`` entry (the one appended by the proxy we
-    trust) identifies the client. Without a trusted proxy the header is
+    trust) identifies the client; it is validated as an IP address and a
+    malformed header falls back to the peer. This assumes exactly one trusted
+    hop appends to the header. Without a trusted proxy the header is
     attacker-controlled and is ignored.
     """
     if trust_proxy_headers:
         for name, value in scope.get("headers", []):
             if name == b"x-forwarded-for":
-                forwarded = value.decode("latin-1").split(",")
-                candidate = forwarded[-1].strip()
-                if candidate:
-                    return candidate
+                candidate = value.decode("latin-1").rsplit(",", 1)[-1].strip()
+                try:
+                    return str(ipaddress.ip_address(candidate))
+                except ValueError:
+                    break  # malformed header: fall back to the socket peer
     client = scope.get("client")
     return client[0] if client else "unknown"
 

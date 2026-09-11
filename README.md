@@ -78,7 +78,7 @@ flowchart TD
 2. For each borough × class it calls `Cuantificar` (expected total) and pages through `BuscarAreaAct` until a page comes back short.
 3. Records are minimized, normalized, deduplicated by DENUE `Id`, sorted deterministically and cross-checked against the expected totals.
 4. Exact aggregates are computed in Python; short factual descriptions are written for every aggregate and for a bounded sample of establishments per scope, then embedded locally.
-5. Four artifacts are written to a staging directory, re-validated with the runtime loader, and only then atomically moved into `data/`.
+5. Four artifacts are written to a staging directory, re-validated with the runtime loader, and only then moved into `data/` (each file is replaced atomically; the manifest checksum makes a half-replaced set detectable at startup).
 6. At startup the API loads the artifacts, verifies the checksum, recomputes the aggregates from the records, checks the embedding model and dimension, and loads FastEmbed once.
 
 ### Artifacts
@@ -125,9 +125,9 @@ Measured: the Docker container (Linux, `--memory=512m`) sits at ~238 MiB with th
 
 ## 5. Data minimization
 
-**Retained:** DENUE identifier, commercial name, economic activity class and code, employment-size range, state, borough (code and name), locality (DENUE *Colonia*), latitude/longitude (validated against a CDMX bounding box), establishment type, record registration/update date (`Fecha_Alta`).
+**Retained:** DENUE identifier, commercial name, economic activity class and code, employment-size range, state, borough (code and name), locality (DENUE *Colonia*, a neighbourhood-level unit — not a street address), establishment type, record registration/update date (`Fecha_Alta`).
 
-**Excluded and rejected at load time:** telephone, e-mail, website, legal entity name (`Razon_social`), street type, street, exterior/interior number, postal code and the full `Ubicacion` string. `EstablishmentRecord` uses `extra="forbid"` and the loader independently rejects any of these keys.
+**Excluded:** telephone, e-mail, website, legal entity name (`Razon_social`), street type, street, exterior/interior number, postal code, the full `Ubicacion` string, AGEB/block codes and **coordinates** (a 10 cm geocode plus a name is a more precise locator than an address, and nothing in the product needs it). `EstablishmentRecord` uses `extra="forbid"`, so a record carrying any other key fails validation at startup.
 
 Establishment names appear only in `examples` answers and in the bounded sample used for semantic retrieval; the primary experience is aggregated statistics.
 
@@ -140,7 +140,8 @@ Establishment names appear only in `examples` answers and in the bounded sample 
 - Model: `BAAI/bge-small-en-v1.5` via FastEmbed (ONNX Runtime, CPU, no API key, no PyTorch/Transformers), loaded once per process during both ingestion and serving.
 - Documents: one per borough, per category, per borough × category (with the most common employment range), one dataset overview, plus up to 10 sample establishments per borough × category.
 - Vectors are L2-normalized; scoring is a single NumPy matrix product; near-duplicates are removed; results are filtered to the boroughs/categories mentioned in the question.
-- Retrieval supplies *supporting evidence* for deterministic answers and drives the `extractive` mode for open questions. Numbers inside evidence documents were themselves computed by Python during ingestion.
+- Retrieval supplies *supporting evidence* shown with deterministic answers and drives the `extractive` mode for open questions. Because bge-small scores unrelated text only slightly below relevant text, `extractive` additionally requires an anchor: a recognised borough/category in the question, or an aggregate document as the top hit. Numbers inside evidence documents were themselves computed by Python during ingestion.
+- The embedding model is English-oriented; Spanish questions reach the same documents because the retrieval query is augmented with the canonical English names of the boroughs/categories the parser recognised (`¿Cuántas panaderías hay en Coyoacán?` → `… (Coyoacán, Bakeries)`). A multilingual model would be the next step for free-form Spanish.
 
 ## 8. Optional Gemini explanation
 
@@ -148,7 +149,7 @@ Set `GEMINI_API_KEY` and `GEMINI_MODEL` (no model is hard-coded). Optionally set
 
 > Use only the supplied structured analysis and retrieved evidence. Every numeric value has already been calculated by the application and must be reproduced exactly. Do not calculate, estimate, correct, or replace any value. Do not use outside knowledge.
 
-Guard-rails: Gemini is only called for supported, sufficient questions; its output is discarded (and the deterministic answer used) if it contains any number absent from the payload; timeouts, rate limits, quota exhaustion, invalid credentials, unavailable models, malformed and empty responses all fall back. Repeated failures surface in `/health` as `degraded`. The key never leaves the backend and is never logged.
+Guard-rails (`explanation_problem` in `app/services/query.py`): Gemini is only called for supported, sufficient questions; the prompt carries the structured analysis and the question in a delimited "data, not instructions" block — retrieved evidence and establishment names are *not* sent; the reply is discarded (and the deterministic answer used) if it contains a number absent from the calculated metrics, omits the headline value, spells numbers out in words, contains a URL/domain or endorsement language, or exceeds 900 characters; timeouts, rate limits, quota exhaustion, invalid credentials, unavailable models, malformed and empty responses all fall back. Discards are logged with a reason and surface in `/health` as `degraded`. Token usage is logged per call. The key never leaves the backend and is never logged.
 
 ## 9. Local fallback
 
@@ -177,7 +178,7 @@ If any scope fails or its count differs from `Cuantificar`, the manifest is mark
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # runtime deps are pinned in requirements.txt
 cp .env.example .env            # optionally add INEGI_API_TOKEN / GEMINI_* values
 python -m scripts.ingest_denue  # only if you want to regenerate data/ (needs INEGI_API_TOKEN)
 uvicorn app.main:app --port 8000 --workers 1
@@ -188,12 +189,12 @@ Open <http://localhost:8000>. Endpoints:
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /` | Web application |
-| `GET /health` | Status (`ok` / `degraded` / `unavailable`), dataset counts, completeness, embedding model, Gemini configured, fallback availability |
+| `GET /health` | `ok` (dataset loaded; Gemini optional), `degraded` (configured Gemini failed recently), `unavailable` (HTTP 503, dataset not loaded); dataset counts, completeness, embedding model, Gemini configured, fallback availability |
 | `GET /api/source` | Source name/URL, attribution, retrieval date, latest record date, scope, completeness, failed scopes, transformation notice |
 | `GET /api/summary` | Aggregate counts for the dashboard |
 | `POST /api/query` | `{"question": "..."}` → answer, mode, intent, metrics, filters, evidence, source, scope, methodology, attribution |
 
-Errors use `{"error": {"code": "...", "message": "..."}}` with 400 (invalid normalized question), 413 (body too large), 422 (schema), 429 (rate limit), 503 (dataset unavailable) and 500 only for unexpected failures — never with a stack trace.
+Errors use `{"error": {"code": "...", "message": "..."}}` with 400 (invalid normalized question), 413 (body too large), 422 (schema), 429 (rate limit), 503 (dataset unavailable) and 500 only for unexpected failures — never with a stack trace, always with the request ID and security headers. The interactive API docs are disabled (they need CDN scripts the CSP blocks).
 
 ## 13. Tests
 
@@ -202,7 +203,7 @@ pytest -q
 ruff format --check . && ruff check .
 ```
 
-Tests run offline with a **synthetic** dataset (`TEST ESTABLISHMENT …` names, clearly not real DENUE records), a keyword-based fake embedder and a mocked Gemini client. They cover DENUE normalization and field removal, deduplication, aggregate/percentage/ranking/comparison maths, borough and category aliases (accent-insensitive, Spanish and English), intents, unsupported questions, truncated/partial ingestion, manifest and checksum validation, attribution presence, retrieval, Gemini failure categories, the numeric-consistency guard, deterministic fallback, every endpoint, health transitions, rate limiting, controlled errors, and a repository sweep that fails if any prior-project term, private contact field or unsafe DOM sink appears.
+Tests (`pytest -q`, ~1 s) run offline with a **synthetic** dataset (`TEST ESTABLISHMENT …` names, clearly not real DENUE records), a keyword-based fake embedder and a mocked Gemini client. They cover DENUE normalization and field removal, deduplication, aggregate/percentage/ranking/comparison maths, borough and category aliases (accent-insensitive, Spanish and English), intents, unsupported questions, truncated/partial ingestion, manifest and checksum validation, attribution presence, retrieval, Gemini failure categories, the numeric-consistency guard, deterministic fallback, every endpoint, health transitions, rate limiting, controlled errors, the faithfulness guard rule by rule, employment-size filters across every intent, staged-write rollback, and a repository sweep that fails if any hostname outside an allowlist, private contact field or unsafe DOM sink appears. CI runs lint + tests and then builds the Docker image and boots it against `/health`.
 
 ## 14. Evaluation
 
@@ -210,7 +211,7 @@ Tests run offline with a **synthetic** dataset (`TEST ESTABLISHMENT …` names, 
 python -m scripts.evaluate
 ```
 
-Runs eleven representative questions against the generated dataset without Gemini and reports borough/category/intent detection, exact count/percentage/ranking checks recomputed independently from the records, unsupported-query rejection, evidence scores and latency. It documents observed behaviour on this dataset; it is not a claim of general analytical accuracy.
+A smoke test, not a benchmark: it runs the suggested questions plus a set of paraphrases (English and Spanish, filtered by employment size, joined boroughs, off-topic and injection-style inputs) against the generated dataset without Gemini and checks borough/category/intent detection, exact values recomputed from the records, and rejection of off-topic questions, reporting evidence scores and latency. The parser vocabulary was tuned on questions of this kind, so passing it shows the shipped behaviour, not general analytical accuracy. The Gemini path is covered by unit tests with a mocked client (failure categories and the faithfulness guard), not by this script.
 
 ## 15. Docker
 
@@ -222,7 +223,7 @@ docker run --rm -p 8000:8000 -e GEMINI_API_KEY=... -e GEMINI_MODEL=... mexico-of
 curl http://localhost:8000/health
 ```
 
-The image is `python:3.12-slim`, installs dependencies before copying code, downloads the embedding model at build time, copies the four validated artifacts, runs as a non-root user, exposes a Python-based `HEALTHCHECK`, respects `PORT` and runs exactly one Uvicorn worker.
+The image is `python:3.12-slim` (digest-pinned), installs only the pinned runtime dependencies before copying code, downloads the embedding model at build time, copies the four validated artifacts, runs as a non-root user, exposes a Python-based `HEALTHCHECK`, respects `PORT` and runs exactly one Uvicorn worker.
 
 ## 16. Render deployment
 
@@ -241,10 +242,10 @@ The image is `python:3.12-slim`, installs dependencies before copying code, down
 
 - Secrets stay on the backend; nothing sensitive is logged (request IDs and question lengths only).
 - Input validation: non-empty normalized question, configurable maximum length, `extra="forbid"`, 16 KB body limit.
-- Process-local sliding-window rate limiter per client IP (`X-Forwarded-For` honoured only when `TRUST_PROXY_HEADERS=true`, i.e. behind Render's proxy); resets on restart; not sufficient for horizontal scaling.
+- Process-local sliding-window rate limiter per client IP. With `TRUST_PROXY_HEADERS=true` (Render) the right-most `X-Forwarded-For` entry is used after validation as an IP address, assuming one trusted proxy hop; malformed headers fall back to the socket peer. Resets on restart; not sufficient for horizontal scaling.
 - Configurable CORS, security headers and a strict Content-Security-Policy; server-generated request IDs.
 - Safe rendering: the frontend uses `textContent` only; the only external link is the INEGI documentation page.
-- Prompt-injection awareness: retrieved evidence is declared untrusted to the model, and the numeric guard rejects explanations that change values.
+- Prompt injection: the model only ever sees the calculated payload and the question inside a delimited block; retrieved text never reaches the prompt; the faithfulness guard rejects replies that change or add numbers, spell numbers out, contain URLs or claim endorsement. This bounds what a hostile question can make the UI display under the "explained by Gemini" label.
 - No conversation storage, no ingestion endpoint, no arbitrary URL fetching.
 
 ## 18. Dataset completeness

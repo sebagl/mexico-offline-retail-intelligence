@@ -74,16 +74,18 @@ _EMPLOYMENT = (
     "employees",
     "size segment",
     "size range",
-    "size",
+    "employment size",
     "stratum",
     "strata",
-    "segment",
     "empleados",
     "tamano",
     "personal ocupado",
     "estrato",
 )
-_DISTRIBUTION = ("distribution", "breakdown", "composition", "distribucion", "composicion", "mix")
+# Category composition of an area ("mix", "breakdown") is a ranking of categories,
+# not an employment distribution.
+_COMPOSITION = ("distribution", "breakdown", "composition", "distribucion", "composicion", "mix")
+_CONJUNCTION = ("and", "or", "y", "o", "vs")
 _RANK_HIGH = (
     "most",
     "highest",
@@ -196,23 +198,37 @@ def _has_any(text: str, phrases: tuple[str, ...]) -> bool:
     return any(_contains_phrase(text, fold(phrase)) if phrase != "%" else "%" in text for phrase in phrases)
 
 
-def _detect_intent(text: str, boroughs: tuple[str, ...], categories: tuple[str, ...]) -> tuple[Intent, bool]:
-    """Return (intent, ascending). Order of checks encodes precedence."""
+def _detect_intent(
+    text: str, boroughs: tuple[str, ...], categories: tuple[str, ...], strata: tuple[str, ...]
+) -> tuple[Intent, bool]:
+    """Return (intent, ascending).
+
+    Order encodes precedence: explicit cues first, implicit structure (two
+    boroughs joined by a conjunction) last, so "how many X in A and B" is a
+    count rather than a comparison.
+    """
     ascending = _has_any(text, _RANK_LOW)
     if _has_any(text, _PERCENT):
         return "percentage", ascending
-    if _has_any(text, _COMPARE) or (len(boroughs) >= 2 and _has_any(text, ("and", "y", "vs"))):
+    if _has_any(text, _COMPARE):
         return "comparison", ascending
     if _has_any(text, _EXAMPLES):
         return "examples", ascending
-    if _has_any(text, _EMPLOYMENT):
-        return "distribution", ascending
     if _has_any(text, _RANK_HIGH) or ascending:
         return "ranking", ascending
-    if _has_any(text, _DISTRIBUTION):
-        return "distribution", ascending
     if _has_any(text, _COUNT):
         return "count", ascending
+    if strata:
+        # "restaurants with 6 to 10 employees in Coyoacán" is a filtered count.
+        return "count", ascending
+    if _has_any(text, _EMPLOYMENT):
+        return "distribution", ascending
+    if _has_any(text, _COMPOSITION):
+        return "ranking", ascending
+    if len(boroughs) >= 2 and _has_any(text, _CONJUNCTION):
+        return "comparison", ascending
+    if boroughs and _has_any(text, _CATEGORY_WORDS):
+        return "ranking", ascending  # "what types of businesses are in Coyoacán?"
     return "unknown", ascending
 
 
@@ -237,11 +253,11 @@ def parse_question(question: str) -> ParsedQuestion:
     boroughs = _detect_boroughs(text)
     categories = _detect_categories(text)
     strata = _detect_strata(text)
-    intent, ascending = _detect_intent(text, boroughs, categories)
+    intent, ascending = _detect_intent(text, boroughs, categories, strata)
     axis = _detect_rank_axis(text, boroughs, categories)
-    if intent == "distribution" and axis == "stratum" and _has_any(text, _RANK_HIGH + _RANK_LOW):
-        # "Which employment-size range is most common among pharmacies?"
-        intent = "ranking"
+    if intent == "ranking" and axis == "stratum" and strata:
+        # Ranking size ranges while filtering to one range is meaningless; count instead.
+        intent = "count"
     return ParsedQuestion(
         normalized=text,
         intent=intent,

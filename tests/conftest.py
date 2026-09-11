@@ -27,7 +27,6 @@ from app.schemas import (
     CountCheck,
     EstablishmentRecord,
     EstablishmentsFile,
-    Evidence,
     GeographicScope,
     KnowledgeDocument,
     KnowledgeFile,
@@ -125,14 +124,14 @@ class FakeGenerator:
         self.explanation = explanation
         self.failure = failure
         self.configured = configured
-        self.calls: list[tuple[str, dict[str, Any], list[Evidence]]] = []
+        self.calls: list[tuple[str, dict[str, Any]]] = []
 
     @property
     def is_configured(self) -> bool:
         return self.configured
 
-    async def explain(self, question: str, payload: dict[str, Any], evidence: list[Evidence]) -> str:
-        self.calls.append((question, payload, evidence))
+    async def explain(self, question: str, payload: dict[str, Any]) -> str:
+        self.calls.append((question, payload))
         if self.failure is not None:
             raise GenerationError(self.failure)
         if self.explanation is not None:
@@ -169,8 +168,6 @@ def synthetic_records() -> list[EstablishmentRecord]:
                         borough_code=borough.code,
                         borough=borough.name,
                         locality="TEST LOCALITY",
-                        latitude=19.4,
-                        longitude=-99.1,
                         establishment_type="Fijo",
                         source_date="2025-11",
                     )

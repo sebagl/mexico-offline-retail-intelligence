@@ -78,7 +78,16 @@ def test_normalize_keeps_only_permitted_fields() -> None:
     assert record is not None
     stored = set(record.model_dump())
     assert not (stored & FORBIDDEN_FIELDS)
-    for key in ("telefono", "correo_e", "sitio_internet", "razon_social", "calle", "cp", "ubicacion"):
+    for key in (
+        "telefono",
+        "correo_e",
+        "sitio_internet",
+        "razon_social",
+        "calle",
+        "cp",
+        "ubicacion",
+        "latitud",
+    ):
         assert key not in stored
     assert record.name == "TEST ESTABLISHMENT A"
     assert record.category == "grocery"
@@ -87,7 +96,7 @@ def test_normalize_keeps_only_permitted_fields() -> None:
     assert record.borough == "Benito Juárez"
     assert record.borough_code == "014"
     assert record.locality == "TEST LOCALITY"
-    assert record.latitude == 19.38 and record.longitude == -99.16
+    assert not hasattr(record, "latitude")  # coordinates are not retained
     assert record.source_date == "2025-11"
 
 
@@ -96,12 +105,6 @@ def test_normalize_accepts_numeric_stratum_and_drops_unknown() -> None:
     assert normalize_record(raw_record(Estrato="unknown"), BJ, "461110") is None
     assert normalize_record(raw_record(Nombre="   "), BJ, "461110") is None
     assert normalize_record(raw_record(Id=""), BJ, "461110") is None
-
-
-def test_out_of_range_coordinates_are_dropped() -> None:
-    record = normalize_record(raw_record(Latitud="45.0", Longitud="abc"), BJ, "461110")
-    assert record is not None
-    assert record.latitude is None and record.longitude is None
 
 
 def test_dedup_and_wrong_class_rejection() -> None:

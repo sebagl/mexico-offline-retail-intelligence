@@ -9,6 +9,7 @@ through function signatures.
 import json
 import logging
 import sys
+import traceback
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
@@ -32,8 +33,9 @@ class JsonFormatter(logging.Formatter):
         for key, value in record.__dict__.items():
             if key not in _STANDARD_ATTRS and not key.startswith("_"):
                 payload[key] = value
-        if record.exc_info:
-            payload["exception"] = record.exc_info[0].__name__ if record.exc_info[0] else None
+        if record.exc_info and record.exc_info[0] is not None:
+            payload["exception"] = record.exc_info[0].__name__
+            payload["traceback"] = "".join(traceback.format_exception(*record.exc_info))
         return json.dumps(payload, default=str)
 
 
