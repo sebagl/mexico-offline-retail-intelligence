@@ -235,6 +235,7 @@ class QueryResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: HealthStatus
+    version: str
     dataset_loaded: bool
     establishments: int
     boroughs: int

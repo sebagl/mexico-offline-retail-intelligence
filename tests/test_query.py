@@ -133,8 +133,39 @@ def test_explanation_problem_rules() -> None:
     assert check("Over half of 1,234 (45.5%).") == "unverifiable_fraction"
     assert check("See www.inegi.org.mx: 1,234 (45.5%).") == "contains_url"
     assert check("INEGI officially endorses this: 1,234 (45.5%).") == "endorsement_language"
+    assert check("Not endorsed by INEGI: 1,234 (45.5%).") is None  # negated disclaimer is fine
+    assert check("Análisis no avalado por el INEGI: 1,234 (45,5 %).") is None
     assert check("This is an official INEGI tool: 1,234 (45.5%).") == "endorsement_language"
     assert check("1,234 (45.5%) " + "x" * 900) == "too_long"
+
+
+def test_context_numbers_cover_scope_and_positions() -> None:
+    from app.services.query import context_numbers
+    from app.services.question_parser import parse_question
+
+    parsed = parse_question("Compare Cuauhtémoc and Miguel Hidalgo restaurants")
+    analysis = Analysis(intent="ranking", answer="", metrics={"ranking": [{}, {}, {}]})
+    numbers = context_numbers(parsed, analysis, 2026)
+    assert {5.0, 10.0, 2026.0, 2.0, 1.0, 3.0} <= numbers
+    assert 4.0 not in numbers and 0.0 not in numbers
+
+
+def test_answer_language_heuristic() -> None:
+    from app.services.query import answer_language
+
+    assert answer_language("Which borough has the most grocery stores?") == "English"
+    assert answer_language("¿Cuántas farmacias hay en Iztapalapa?") == "Spanish"
+    assert answer_language("Muestra ejemplos de panaderías en Coyoacán") == "Spanish"
+
+
+def test_generated_mode_passes_language_and_month_not_timestamp(make_client) -> None:
+    generator = FakeGenerator()
+    client = make_client(generator=generator)
+    client.post("/api/query", json={"question": "¿Cuántas farmacias hay en Iztapalapa?"})
+    _, payload = generator.calls[0]
+    assert generator.languages == ["Spanish"]
+    assert payload["scope"]["data_retrieved"] == "January 2026"
+    assert "retrieved_at" not in payload["scope"]
 
 
 def test_spelled_out_numbers_parser() -> None:

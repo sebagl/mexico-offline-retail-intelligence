@@ -9,6 +9,7 @@ def test_health_ok_when_dataset_and_generator_available(make_client) -> None:
     client = make_client(generator=FakeGenerator(configured=True))
     body = client.get("/health").json()
     assert body["status"] == "ok"
+    assert body["version"]
     assert body["dataset_loaded"] is True
     assert body["establishments"] == 41
     assert body["boroughs"] == 5

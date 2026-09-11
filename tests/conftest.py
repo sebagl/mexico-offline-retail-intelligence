@@ -125,13 +125,15 @@ class FakeGenerator:
         self.failure = failure
         self.configured = configured
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.languages: list[str] = []
 
     @property
     def is_configured(self) -> bool:
         return self.configured
 
-    async def explain(self, question: str, payload: dict[str, Any]) -> str:
+    async def explain(self, question: str, payload: dict[str, Any], language: str = "English") -> str:
         self.calls.append((question, payload))
+        self.languages.append(language)
         if self.failure is not None:
             raise GenerationError(self.failure)
         if self.explanation is not None:

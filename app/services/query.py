@@ -493,7 +493,9 @@ class QueryService:
             "deterministic_answer": analysis.answer,
             "scope": {
                 "complete": manifest.complete,
-                "retrieved_at": manifest.retrieved_at,
+                # Month in words: a timestamp would invite "11 September" style
+                # digits that the faithfulness guard cannot tell from wrong values.
+                "data_retrieved": _month_year(manifest.retrieved_at),
                 "boroughs_covered": [b.name for b in BOROUGHS],
                 "categories_covered": [c.label_en for c in CATEGORIES],
             },
@@ -505,7 +507,7 @@ class QueryService:
         payload = self._payload(parsed, analysis)
         started = time.perf_counter()
         try:
-            text = await self._generator.explain(question, payload)
+            text = await self._generator.explain(question, payload, answer_language(question))
         except GenerationError as exc:
             self._generation_status.record_failure(exc.category)
             logger.warning(
@@ -513,12 +515,8 @@ class QueryService:
                 extra={"provider": self._generator.provider_name, "category": exc.category},
             )
             return None
-        context_numbers = (
-            len(BOROUGHS),
-            len(CATEGORIES),
-            int(self._dataset.manifest.retrieved_at[:4]),
-        )
-        problem = explanation_problem(text, analysis, context_numbers)
+        retrieved_year = int(self._dataset.manifest.retrieved_at[:4])
+        problem = explanation_problem(text, analysis, context_numbers(parsed, analysis, retrieved_year))
         if problem is not None:
             self._generation_status.record_failure(f"explanation_{problem}")
             logger.warning("explanation discarded", extra={"reason": problem})
@@ -712,7 +710,7 @@ def explanation_problem(text: str, analysis: Analysis, context_numbers: Iterable
         return "too_long"
     if _URL_OR_DOMAIN.search(text):
         return "contains_url"
-    if _ENDORSEMENT.search(text):
+    if _claims_endorsement(text):
         return "endorsement_language"
     if _FRACTION_WORDS.search(text):
         return "unverifiable_fraction"
@@ -733,12 +731,82 @@ def explanation_problem(text: str, analysis: Analysis, context_numbers: Iterable
     return None
 
 
+_MONTHS = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
+_SPANISH_MARKERS = re.compile(
+    r"[¿¡]|\b(?:cuant[ao]s?|que|cual(?:es)?|donde|como|hay|tiene[n]?|muestra|compara|ejemplos?|"
+    r"porcentaje|alcaldias?|tiendas?|establecimientos?|mas|menos|en la|de la|del|los|las)\b"
+)
+_ENGLISH_MARKERS = re.compile(
+    r"\b(?:what|which|how|where|show|compare|examples?|percentage|borough|boroughs|stores?|"
+    r"establishments?|most|least|the|of|in|are|is)\b"
+)
+
+
+def answer_language(question: str) -> str:
+    """Cheap language guess used to keep the explanation in the user's language."""
+    folded = fold(question)
+    spanish = len(_SPANISH_MARKERS.findall(question.lower())) + len(_SPANISH_MARKERS.findall(folded))
+    english = len(_ENGLISH_MARKERS.findall(folded))
+    return "Spanish" if spanish > english else "English"
+
+
+def _month_year(timestamp: str) -> str:
+    try:
+        year, month = int(timestamp[:4]), int(timestamp[5:7])
+        return f"{_MONTHS[month - 1]} {year}"
+    except (ValueError, IndexError):
+        return timestamp[:7]
+
+
 def _flatten(value: Any) -> str:
     if isinstance(value, dict):
         return " ".join(f"{k} {_flatten(v)}" for k, v in value.items())
     if isinstance(value, list | tuple):
         return " ".join(_flatten(v) for v in value)
     return str(value)
+
+
+_NEGATION = re.compile(r"\b(?:not|no|nor|never|neither|without|ni|sin|tampoco|nunca)\b", re.I)
+
+
+def _claims_endorsement(text: str) -> bool:
+    """True for an endorsement claim; a negated disclaimer ("not endorsed by INEGI") is fine."""
+    for match in _ENDORSEMENT.finditer(text):
+        preceding = text[max(0, match.start() - 40) : match.start()]
+        if not _NEGATION.search(preceding):
+            return True
+    return False
+
+
+def context_numbers(parsed: ParsedQuestion, analysis: Analysis, retrieved_year: int) -> set[float]:
+    """Numbers an explanation may use that are not calculated values.
+
+    Scope sizes ("the five covered boroughs", "10 categories"), the retrieval
+    year, the size of the user's selection ("the 2 boroughs") and positions
+    within a listed ranking or sample ("the top 3", "8 examples"). These are
+    small, bounded, and never the headline value the guard also requires.
+    """
+    numbers: set[float] = {float(len(BOROUGHS)), float(len(CATEGORIES)), float(retrieved_year)}
+    numbers |= {float(len(parsed.boroughs)), float(len(parsed.categories)), float(len(parsed.strata))}
+    for value in analysis.metrics.values():
+        if isinstance(value, list):
+            numbers |= {float(i) for i in range(1, len(value) + 1)}
+    numbers |= {float(i) for i in range(1, len(parsed.boroughs) + 1)}
+    numbers.discard(0.0)
+    return numbers
 
 
 def _grounded_in_dataset(parsed: ParsedQuestion, evidence: list[Evidence]) -> bool:

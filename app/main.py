@@ -163,6 +163,7 @@ def _register_routes(app: FastAPI) -> None:
         manifest = state.dataset.manifest if state.dataset else None
         body = HealthResponse(
             status=status,
+            version=__version__,
             dataset_loaded=state.dataset is not None,
             establishments=state.dataset.record_count if state.dataset else 0,
             boroughs=manifest.borough_count if manifest else 0,
