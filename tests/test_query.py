@@ -26,6 +26,32 @@ def test_generated_mode_uses_explanation_but_keeps_metrics(make_client) -> None:
     assert payload["scope"]["complete"] is True
 
 
+def test_verified_explanations_are_cached_per_question(make_client) -> None:
+    generator = FakeGenerator(explanation="Iztapalapa has 6 grocery stores.")
+    client = make_client(generator=generator)
+    for _ in range(3):
+        body = client.post(
+            "/api/query", json={"question": "How many grocery stores are in Iztapalapa?"}
+        ).json()
+        assert body["mode"] == "generated"
+    assert len(generator.calls) == 1  # second and third answers came from the cache
+    client.post("/api/query", json={"question": "How many grocery stores are in Coyoacán?"})
+    assert len(generator.calls) == 2  # a different question is a different key
+
+
+def test_discarded_explanations_are_not_cached(make_client) -> None:
+    generator = FakeGenerator(explanation="Iztapalapa has 9 grocery stores.")  # wrong number
+    client = make_client(generator=generator)
+    for _ in range(2):
+        assert (
+            client.post("/api/query", json={"question": "How many grocery stores are in Iztapalapa?"}).json()[
+                "mode"
+            ]
+            == "deterministic"
+        )
+    assert len(generator.calls) == 2
+
+
 def test_gemini_is_not_called_without_evidence_or_for_unsupported(make_client) -> None:
     generator = FakeGenerator()
     client = make_client(generator=generator)

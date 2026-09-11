@@ -48,6 +48,7 @@ EXTRACTIVE_PREFACE = (
     "from the configured dataset:"
 )
 MAX_EVIDENCE = 3
+EXPLANATION_CACHE_SIZE = 256
 _NUMBER = re.compile(r"\d[\d,]*(?:\.\d+)?")
 
 
@@ -133,6 +134,10 @@ class QueryService:
         self._generator = generator
         self._generation_status = generation_status
         self._max_question_length = max_question_length
+        # The dataset is immutable for the life of the process, so a verified
+        # explanation for a question can be reused: repeated demo questions cost
+        # no quota and answer in milliseconds. Bounded, process-local, unshared.
+        self._explanations: dict[tuple[str, str], str] = {}
 
     # ------------------------------------------------------------------ #
     # Public entry point
@@ -504,10 +509,16 @@ class QueryService:
     async def _explain(
         self, question: str, parsed: ParsedQuestion, analysis: Analysis, evidence: list[Evidence]
     ) -> str | None:
+        language = answer_language(question)
+        cache_key = (question.casefold(), language)
+        cached = self._explanations.get(cache_key)
+        if cached is not None:
+            logger.info("explanation served from cache")
+            return cached
         payload = self._payload(parsed, analysis)
         started = time.perf_counter()
         try:
-            text = await self._generator.explain(question, payload, answer_language(question))
+            text = await self._generator.explain(question, payload, language)
         except GenerationError as exc:
             self._generation_status.record_failure(exc.category)
             logger.warning(
@@ -523,6 +534,9 @@ class QueryService:
             return None
         self._generation_status.record_success()
         logger.info("explanation generated", extra={"generation_ms": _elapsed_ms(started)})
+        if len(self._explanations) >= EXPLANATION_CACHE_SIZE:
+            self._explanations.pop(next(iter(self._explanations)))
+        self._explanations[cache_key] = text
         return text
 
     def _build_response(

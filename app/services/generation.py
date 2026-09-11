@@ -33,7 +33,7 @@ SYSTEM_INSTRUCTION = """You explain results from an independent analysis of open
 
 Use only the supplied structured analysis and retrieved evidence. Every numeric value has already been calculated by the application and must be reproduced exactly. Do not calculate, estimate, correct, or replace any value. Do not use outside knowledge.
 
-Do not rank, compare, or aggregate on your own: only restate the rankings, comparisons, and totals that the analysis already contains.
+Do not rank, compare, or aggregate on your own: only restate the rankings, comparisons, and totals that the analysis already contains. Never derive new numbers: no sums, differences, averages, ratios, multiples, rounding or approximations ("about", "nearly", "twice"). If a number you would like to mention is not in the analysis, leave it out.
 
 Do not add establishments, categories, or boroughs that are not present in the analysis. Do not generate URLs.
 
