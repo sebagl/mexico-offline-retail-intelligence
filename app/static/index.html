@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Independent demonstration analyzing open INEGI DENUE establishment data for selected Mexico City boroughs and retail categories." />
+    <meta name="description" content="Explore retail patterns across five Mexico City boroughs using public INEGI DENUE data. Independent analytics demo." />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>Mexico Offline Retail Intelligence</title>
     <link rel="icon" href="data:," />
@@ -12,62 +12,24 @@
   <body>
     <a class="skip-link" href="#question">Skip to the question form</a>
 
-    <header class="site-header">
-      <div class="container">
-        <p class="eyebrow">Independent open-data demonstration</p>
-        <h1>Mexico Offline Retail Intelligence</h1>
-        <p class="subtitle">
-          Explore selected physical retail establishments in Mexico City using open INEGI DENUE data.
-        </p>
-        <p class="attribution" id="attribution" role="note">Fuente: INEGI, Directorio Estadístico Nacional de Unidades Económicas (DENUE).</p>
-        <p class="disclaimer" role="note">This independent demonstration transforms and analyzes public INEGI data. The analysis was not produced, reviewed, sponsored, or endorsed by INEGI.</p>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <div class="brand">
+          <h1>Mexico Offline Retail Intelligence</h1>
+          <p class="subtitle">Explore retail patterns across five Mexico City boroughs using public INEGI data.</p>
+        </div>
+        <div class="topbar-side">
+          <span id="service-status" class="status-pill" data-state="unknown">Checking service…</span>
+          <a class="code-link" href="https://github.com/sebagl/mexico-offline-retail-intelligence" target="_blank" rel="noopener noreferrer">View code</a>
+        </div>
       </div>
     </header>
 
     <main class="container" id="main">
-      <section class="panel" aria-labelledby="dataset-heading">
-        <div class="panel-heading">
-          <h2 id="dataset-heading">Dataset summary</h2>
-          <p class="status-pill" id="service-status" aria-live="polite">Checking service status…</p>
-        </div>
-        <p class="muted">
-          Coverage is limited to the configured Mexico City boroughs and selected retail categories listed
-          below. It is not a citywide or national view.
-        </p>
-        <dl class="stats" id="stats">
-          <div class="stat"><dt>Establishments</dt><dd id="stat-total">—</dd></div>
-          <div class="stat"><dt>Boroughs covered</dt><dd id="stat-boroughs">—</dd></div>
-          <div class="stat"><dt>Categories covered</dt><dd id="stat-categories">—</dd></div>
-          <div class="stat"><dt>Data retrieved</dt><dd id="stat-date">—</dd></div>
-          <div class="stat"><dt>Completeness</dt><dd id="stat-complete">—</dd></div>
-        </dl>
-        <div class="two-column compact">
-          <div>
-            <h3 class="minor-heading">Boroughs</h3>
-            <ul id="borough-list" class="tag-list"><li class="muted">Loading…</li></ul>
-          </div>
-          <div>
-            <h3 class="minor-heading">Retail categories (SCIAN classes)</h3>
-            <ul id="category-list" class="tag-list"><li class="muted">Loading…</li></ul>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel" aria-labelledby="ask-heading">
-        <h2 id="ask-heading">Ask a question</h2>
-
-        <div class="suggestions" aria-label="Suggested questions">
-          <span class="suggestions-label">Try:</span>
-          <button type="button" class="chip" data-question="Which selected borough has the most grocery stores?">Which selected borough has the most grocery stores?</button>
-          <button type="button" class="chip" data-question="What are the most common retail categories in Benito Juárez?">What are the most common retail categories in Benito Juárez?</button>
-          <button type="button" class="chip" data-question="Compare the retail composition of Cuauhtémoc and Miguel Hidalgo.">Compare the retail composition of Cuauhtémoc and Miguel Hidalgo.</button>
-          <button type="button" class="chip" data-question="Which employment-size range is most common among pharmacies?">Which employment-size range is most common among pharmacies?</button>
-          <button type="button" class="chip" data-question="Show examples of bakeries in Coyoacán.">Show examples of bakeries in Coyoacán.</button>
-          <button type="button" class="chip" data-question="How many establishments are included in this dataset?">How many establishments are included in this dataset?</button>
-        </div>
-
+      <section class="panel ask-panel" aria-labelledby="ask-heading">
+        <h2 id="ask-heading" class="visually-hidden">Ask a question</h2>
         <form id="query-form" novalidate>
-          <label for="question" class="visually-hidden">Your question</label>
+          <label for="question" class="visually-hidden">Question about the dataset</label>
           <div class="input-row">
             <input
               id="question"
@@ -76,83 +38,139 @@
               maxlength="500"
               autocomplete="off"
               spellcheck="true"
-              placeholder="Ask about counts, percentages, rankings, comparisons or examples…"
+              placeholder="e.g. Which borough has the most pharmacies?"
               aria-describedby="input-help"
               required
             />
-            <button type="submit" id="submit" class="button-primary">Ask</button>
+            <button type="submit" id="submit" class="button-primary">Analyze</button>
           </div>
-          <p id="input-help" class="help-text">
-            Quantitative answers are computed by the application from the dataset. Nothing you type is stored.
-          </p>
         </form>
-
-        <p id="form-message" class="form-message" role="alert" hidden></p>
-
-        <section id="result" class="result" aria-live="polite" aria-busy="false" hidden>
-          <div class="result-header">
-            <h3>Answer</h3>
-            <span id="mode-badge" class="mode-badge"></span>
-            <span id="basis-badge" class="mode-badge"></span>
-          </div>
-          <p id="answer" class="answer"></p>
-
-          <div id="filters-block" hidden>
-            <h4>Applied filters</h4>
-            <ul id="filters" class="tag-list"></ul>
-          </div>
-
-          <div id="metrics-block" hidden>
-            <h4>Calculated metrics</h4>
-            <div class="table-wrap"><table id="metrics-table" class="metrics-table"><tbody></tbody></table></div>
-          </div>
-
-          <div id="evidence-block" hidden>
-            <h4>Supporting dataset facts</h4>
-            <ul id="evidence" class="source-list"></ul>
-          </div>
-
-          <div id="methodology-block" hidden>
-            <h4>Methodology and source</h4>
-            <p id="methodology" class="source-excerpt"></p>
-            <p id="result-attribution" class="source-excerpt"></p>
-            <p class="source-excerpt"><a id="source-link" href="https://www.inegi.org.mx/servicios/api_denue.html" target="_blank" rel="noopener noreferrer">INEGI DENUE API documentation</a></p>
-          </div>
-        </section>
+        <div class="suggestions">
+          <span class="suggestions-label">Try:</span>
+          <button type="button" class="chip" data-question="Which selected borough has the most grocery stores?">Most grocery stores by borough</button>
+          <button type="button" class="chip" data-question="What are the most common retail categories in Benito Juárez?">Top categories in Benito Juárez</button>
+          <button type="button" class="chip" data-question="Compare the retail composition of Cuauhtémoc and Miguel Hidalgo.">Cuauhtémoc vs Miguel Hidalgo</button>
+          <details class="more-examples">
+            <summary>More examples</summary>
+            <div class="chip-group">
+              <button type="button" class="chip" data-question="Which employment-size range is most common among pharmacies?">Pharmacy employment sizes</button>
+              <button type="button" class="chip" data-question="Show examples of bakeries in Coyoacán.">Bakeries in Coyoacán (examples)</button>
+              <button type="button" class="chip" data-question="What percentage of the selected establishments are grocery stores?">Share of grocery stores</button>
+              <button type="button" class="chip" data-question="How many establishments are included in this dataset?">Dataset size</button>
+            </div>
+          </details>
+        </div>
+        <p id="input-help" class="help-text">
+          Counts, percentages, rankings, comparisons, employment sizes and examples for the covered boroughs and retail
+          categories. Questions are not stored.
+        </p>
       </section>
 
-      <div class="two-column">
-        <section class="panel" aria-labelledby="how-heading">
-          <h2 id="how-heading">How it works</h2>
-          <ol class="steps">
-            <li>Establishment records for the configured boroughs and SCIAN classes are downloaded from the official DENUE API and reduced to the minimum fields needed.</li>
-            <li>Exact counts by borough, category and employment size are computed in Python during ingestion and re-verified at startup.</li>
-            <li>Short factual descriptions of aggregates and a sample of establishments are embedded locally with FastEmbed.</li>
-            <li>Each question is parsed for boroughs, categories and intent; counts, percentages, rankings and comparisons come straight from the calculations.</li>
-            <li>Semantic retrieval adds supporting facts and handles open questions.</li>
-            <li>A language model, when enabled, only rephrases the verified result; answers that introduce new numbers are discarded.</li>
-            <li>Every answer shows its filters, metrics, methodology and the INEGI source.</li>
-          </ol>
-        </section>
+      <section class="overview" aria-label="Dataset overview">
+        <dl class="metric-strip">
+          <div class="metric"><dt>Establishments</dt><dd id="stat-total">—</dd></div>
+          <div class="metric"><dt>Boroughs covered</dt><dd id="stat-boroughs">—</dd></div>
+          <div class="metric"><dt>Categories covered</dt><dd id="stat-categories">—</dd></div>
+        </dl>
+        <p class="meta-line" id="dataset-meta">Loading dataset information…</p>
+      </section>
 
-        <section class="panel" aria-labelledby="scope-heading">
-          <h2 id="scope-heading">Scope and limitations</h2>
-          <ul class="steps">
-            <li>Only the listed boroughs and retail categories are included.</li>
-            <li>Records are a snapshot from the retrieval date shown above.</li>
-            <li>Establishment names appear only in example answers; contact details and street addresses are never stored.</li>
-            <li>Results are analytical transformations of public data, not official INEGI statistics.</li>
-          </ul>
-          <p class="muted" id="completeness-note"></p>
-        </section>
-      </div>
+      <p id="status-live" class="visually-hidden" role="status" aria-live="polite"></p>
+
+      <section id="results" class="panel results" aria-labelledby="results-heading" aria-busy="false">
+        <h2 id="results-heading" class="visually-hidden">Results</h2>
+
+        <p id="placeholder" class="placeholder">Ask a question or pick an example to see the analysis here.</p>
+
+        <div id="loading" class="loading" role="status" hidden>
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Analyzing the selected dataset…</span>
+        </div>
+
+        <div id="error" class="error-box" role="alert" hidden>
+          <p id="error-text"></p>
+          <button type="button" id="retry" class="button-secondary">Retry</button>
+        </div>
+
+        <article id="result" hidden>
+          <p class="kicker"><span id="result-kicker"></span></p>
+          <h3 id="result-headline" class="headline"></h3>
+          <div id="key-figures" class="key-figures"></div>
+          <div id="narrative-block" hidden>
+            <p id="narrative-label" class="narrative-label"></p>
+            <p id="narrative" class="narrative"></p>
+          </div>
+          <div id="visual" class="visual"></div>
+          <div id="suggested-actions" class="suggested-actions" hidden>
+            <p class="suggested-label">Try a supported question:</p>
+            <div id="suggested-buttons" class="chip-group"></div>
+          </div>
+          <div id="filters-block" class="filters" hidden>
+            <span class="filters-label">Filters applied:</span>
+            <ul id="filters" class="chip-list"></ul>
+          </div>
+          <p id="scope-note" class="scope-note"></p>
+
+          <details id="evidence-details" class="disclosure">
+            <summary>Supporting evidence</summary>
+            <ul id="evidence" class="evidence-list"></ul>
+          </details>
+          <details id="method-details" class="disclosure">
+            <summary>Methodology &amp; source</summary>
+            <p id="methodology"></p>
+            <p id="result-attribution"></p>
+            <p><a id="source-link" href="https://www.inegi.org.mx/servicios/api_denue.html" target="_blank" rel="noopener noreferrer">INEGI DENUE API documentation</a></p>
+          </details>
+          <details id="tech-details" class="disclosure">
+            <summary>Technical details</summary>
+            <dl id="tech-list" class="tech-list"></dl>
+          </details>
+        </article>
+      </section>
+
+      <details id="explore" class="panel disclosure-panel">
+        <summary>Explore dataset</summary>
+        <div class="explore-grid">
+          <div>
+            <h3 class="minor-heading">Boroughs</h3>
+            <div class="table-wrap"><table id="borough-table" class="data-table"><caption class="visually-hidden">Establishments by borough</caption><thead><tr><th scope="col">Borough</th><th scope="col" class="num">Establishments</th><th scope="col" class="num">Share</th></tr></thead><tbody></tbody></table></div>
+          </div>
+          <div>
+            <h3 class="minor-heading">Retail categories</h3>
+            <div class="table-wrap"><table id="category-table" class="data-table"><caption class="visually-hidden">Establishments by retail category</caption><thead><tr><th scope="col">Category</th><th scope="col" class="num">Establishments</th><th scope="col" class="num">Share</th></tr></thead><tbody></tbody></table></div>
+          </div>
+        </div>
+        <p class="muted small">Categories map to SCIAN 2023 classes; the official Spanish class titles are shown under each name. Coverage is limited to the configured boroughs and categories — it is not a citywide or national view.</p>
+      </details>
+
+      <details class="panel disclosure-panel">
+        <summary>How it works</summary>
+        <ol class="steps">
+          <li>Establishment records for the configured boroughs and SCIAN classes are downloaded from the official DENUE API and reduced to the minimum fields needed — no contact details, addresses or coordinates.</li>
+          <li>Exact counts by borough, category and employment size are computed in Python during ingestion and re-verified at startup.</li>
+          <li>Each question is parsed for boroughs, categories and intent; counts, percentages, rankings and comparisons come straight from those calculations.</li>
+          <li>Short factual descriptions are embedded locally to supply supporting evidence and handle open questions.</li>
+          <li>When enabled, a language model only rephrases the verified result; any reply that changes or adds a number is discarded.</li>
+        </ol>
+      </details>
+
+      <details class="panel disclosure-panel">
+        <summary>Scope and limitations</summary>
+        <ul class="steps">
+          <li>Only the listed boroughs and retail categories are included; results describe this selection, not Mexico City as a whole.</li>
+          <li>Records are a snapshot from the retrieval date shown above.</li>
+          <li>Counts describe registered establishments only; they say nothing about sales, size of demand or market potential.</li>
+          <li>Establishment names appear only in example answers.</li>
+        </ul>
+        <p class="muted small" id="completeness-note"></p>
+      </details>
     </main>
 
     <footer class="site-footer">
       <div class="container">
-        <p id="footer-attribution">Fuente: INEGI, Directorio Estadístico Nacional de Unidades Económicas (DENUE).</p>
-        <p>This independent demonstration transforms and analyzes public INEGI data. The analysis was not produced, reviewed, sponsored, or endorsed by INEGI.</p>
-        <p class="muted">Built by Sebastian Gonzalez Lonzieme · Python · FastAPI · FastEmbed · NumPy · optional Gemini · plain HTML, CSS and JavaScript</p>
+        <p id="footer-attribution" class="source-note">Fuente: INEGI, Directorio Estadístico Nacional de Unidades Económicas (DENUE).</p>
+        <p class="source-note">This independent demonstration transforms and analyzes public INEGI data. The analysis was not produced, reviewed, sponsored, or endorsed by INEGI.</p>
+        <p class="muted small">Independent portfolio demo by Sebastian Gonzalez Lonzieme · <a href="https://github.com/sebagl/mexico-offline-retail-intelligence" target="_blank" rel="noopener noreferrer">View code</a></p>
       </div>
     </footer>
 

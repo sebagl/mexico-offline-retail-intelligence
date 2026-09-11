@@ -39,6 +39,10 @@ The application distinguishes four kinds of outcome and labels each answer accor
 
 **Quantitative answers are computed by Python from the normalized dataset. The language model, when enabled, is used only to explain verified results.**
 
+### Interface
+
+A single page served by FastAPI (plain HTML, CSS and JavaScript; no build step, no charting library). The question box and three example queries are visible without scrolling on a laptop; results open with a one-line headline, the key figure with its denominator, and a sorted bar chart rendered as an accessible table (exact values, shares only where the API returns them or the denominator is explicit). Applied filters, the dataset basis, supporting evidence, methodology and technical details (similarity scores, response mode) follow in collapsed sections. Loading and error states are announced to assistive technology, requests time out client-side, and a retry keeps the question. Bars are sized through the CSSOM because the Content Security Policy forbids inline style attributes.
+
 ## 2. Public-data source
 
 - Product: *Directorio Estadístico Nacional de Unidades Económicas (DENUE)*, INEGI.
@@ -260,7 +264,7 @@ Snapshot data (no scheduled refresh); five boroughs and ten categories; rule-bas
 
 ## 20. Production evolution
 
-PostgreSQL + pgvector for records and vectors; scheduled incremental DENUE refresh with change tracking; queue-based ingestion; authentication, authorization and multi-tenant isolation; Redis rate limiting behind an API gateway; dataset and prompt versioning; distributed tracing and retrieval metrics; feedback capture, automated evaluations and human review; a secret manager; horizontal scaling.
+Progressive rendering (return the calculated result first and stream the optional explanation afterwards — today the API answers in one response, so the UI waits for both); PostgreSQL + pgvector for records and vectors; scheduled incremental DENUE refresh with change tracking; queue-based ingestion; authentication, authorization and multi-tenant isolation; Redis rate limiting behind an API gateway; dataset and prompt versioning; distributed tracing and retrieval metrics; feedback capture, automated evaluations and human review; a secret manager; horizontal scaling.
 
 ## 21. License
 
