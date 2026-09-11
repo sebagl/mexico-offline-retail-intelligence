@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ruff formatting check
+        run: ruff format --check .
+
+      - name: Ruff lint
+        run: ruff check .
+
+      # Tests use fixture knowledge data and fake embedding/generation
+      # providers: no model download, no Gemini credentials, no network.
+      - name: Run tests
+        env:
+          GEMINI_API_KEY: ""
+          GEMINI_MODEL: ""
+        run: pytest -q

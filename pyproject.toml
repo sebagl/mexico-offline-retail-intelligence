@@ -1,0 +1,35 @@
+[project]
+name = "mexico-offline-retail-intelligence"
+version = "1.0.0"
+description = "Independent demo analyzing open INEGI DENUE establishment data for selected Mexico City boroughs."
+authors = [{ name = "Sebastian Gonzalez Lonzieme" }]
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+extend-exclude = [".venv", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "S", "SIM", "RUF", "ASYNC", "T20"]
+ignore = [
+    "B008",   # FastAPI's `Depends(...)` in parameter defaults is the framework idiom
+    "RUF001", # ambiguous unicode characters (Spanish labels use accents legitimately)
+    "RUF002", # same, in docstrings
+    "RUF003", # same, in comments
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]
+"scripts/*" = ["T201"]
+"app/services/generation.py" = ["E501"]  # the system prompt is prose kept on natural lines
+
+[tool.ruff.lint.isort]
+known-first-party = ["app", "scripts", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["error::RuntimeWarning"]

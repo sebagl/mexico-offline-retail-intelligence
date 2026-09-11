@@ -1,0 +1,554 @@
+{
+ "schema_version": 1,
+ "source_name": "INEGI, Directorio Estadístico Nacional de Unidades Económicas (DENUE)",
+ "source_url": "https://www.inegi.org.mx/servicios/api_denue.html",
+ "retrieved_at": "2026-09-11T01:45:11+00:00",
+ "dataset_update_date": "2026-04",
+ "geographic_scope": {
+  "entity_code": "09",
+  "entity_name": "Ciudad de México",
+  "boroughs": [
+   {
+    "code": "014",
+    "name": "Benito Juárez"
+   },
+   {
+    "code": "015",
+    "name": "Cuauhtémoc"
+   },
+   {
+    "code": "016",
+    "name": "Miguel Hidalgo"
+   },
+   {
+    "code": "003",
+    "name": "Coyoacán"
+   },
+   {
+    "code": "007",
+    "name": "Iztapalapa"
+   }
+  ]
+ },
+ "economic_scope": [
+  {
+   "key": "grocery",
+   "label_en": "Grocery stores",
+   "label_es": "Tiendas de abarrotes y misceláneas",
+   "scian_classes": [
+    "461110"
+   ]
+  },
+  {
+   "key": "convenience",
+   "label_en": "Convenience stores",
+   "label_es": "Minisúpers",
+   "scian_classes": [
+    "462112"
+   ]
+  },
+  {
+   "key": "supermarket",
+   "label_en": "Supermarkets",
+   "label_es": "Supermercados",
+   "scian_classes": [
+    "462111"
+   ]
+  },
+  {
+   "key": "pharmacy",
+   "label_en": "Pharmacies",
+   "label_es": "Farmacias",
+   "scian_classes": [
+    "464111",
+    "464112"
+   ]
+  },
+  {
+   "key": "bakery",
+   "label_en": "Bakeries",
+   "label_es": "Panaderías",
+   "scian_classes": [
+    "311812"
+   ]
+  },
+  {
+   "key": "butcher",
+   "label_en": "Butcher shops",
+   "label_es": "Carnicerías y pollerías",
+   "scian_classes": [
+    "461121",
+    "461122"
+   ]
+  },
+  {
+   "key": "hardware",
+   "label_en": "Hardware stores",
+   "label_es": "Ferreterías y tlapalerías",
+   "scian_classes": [
+    "467111"
+   ]
+  },
+  {
+   "key": "department_store",
+   "label_en": "Department stores",
+   "label_es": "Tiendas departamentales",
+   "scian_classes": [
+    "462210"
+   ]
+  },
+  {
+   "key": "restaurant",
+   "label_en": "Restaurants",
+   "label_es": "Restaurantes y fondas",
+   "scian_classes": [
+    "722511",
+    "722513",
+    "722514"
+   ]
+  },
+  {
+   "key": "cafe",
+   "label_en": "Cafés",
+   "label_es": "Cafeterías y neverías",
+   "scian_classes": [
+    "722515"
+   ]
+  }
+ ],
+ "record_count": 49080,
+ "category_count": 10,
+ "borough_count": 5,
+ "knowledge_document_count": 566,
+ "embedding_provider": "fastembed",
+ "embedding_model": "BAAI/bge-small-en-v1.5",
+ "embedding_dimension": 384,
+ "data_checksum": "sha256:bc5f651f027d2e11629decb875323813ed9089d9aac97f29d11ccee6e6b21cfb",
+ "complete": true,
+ "completeness_note": "All configured borough/activity scopes were retrieved and match the DENUE Cuantificar totals.",
+ "failed_scopes": [],
+ "count_checks": [
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "461110",
+   "expected": 697,
+   "retrieved": 697
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "462112",
+   "expected": 320,
+   "retrieved": 320
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "462111",
+   "expected": 34,
+   "retrieved": 34
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "464111",
+   "expected": 213,
+   "retrieved": 213
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "464112",
+   "expected": 59,
+   "retrieved": 59
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "311812",
+   "expected": 163,
+   "retrieved": 163
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "461121",
+   "expected": 202,
+   "retrieved": 202
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "461122",
+   "expected": 189,
+   "retrieved": 189
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "467111",
+   "expected": 283,
+   "retrieved": 283
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "462210",
+   "expected": 27,
+   "retrieved": 27
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "722511",
+   "expected": 931,
+   "retrieved": 931
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "722513",
+   "expected": 326,
+   "retrieved": 326
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "722514",
+   "expected": 643,
+   "retrieved": 643
+  },
+  {
+   "borough": "Benito Juárez",
+   "scian_class": "722515",
+   "expected": 882,
+   "retrieved": 882
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "461110",
+   "expected": 1967,
+   "retrieved": 1967
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "462112",
+   "expected": 469,
+   "retrieved": 469
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "462111",
+   "expected": 26,
+   "retrieved": 26
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "464111",
+   "expected": 377,
+   "retrieved": 377
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "464112",
+   "expected": 78,
+   "retrieved": 78
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "311812",
+   "expected": 186,
+   "retrieved": 186
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "461121",
+   "expected": 362,
+   "retrieved": 362
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "461122",
+   "expected": 356,
+   "retrieved": 356
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "467111",
+   "expected": 887,
+   "retrieved": 887
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "462210",
+   "expected": 35,
+   "retrieved": 35
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "722511",
+   "expected": 2005,
+   "retrieved": 2005
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "722513",
+   "expected": 795,
+   "retrieved": 795
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "722514",
+   "expected": 1391,
+   "retrieved": 1391
+  },
+  {
+   "borough": "Cuauhtémoc",
+   "scian_class": "722515",
+   "expected": 1577,
+   "retrieved": 1577
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "461110",
+   "expected": 912,
+   "retrieved": 912
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "462112",
+   "expected": 274,
+   "retrieved": 274
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "462111",
+   "expected": 31,
+   "retrieved": 31
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "464111",
+   "expected": 210,
+   "retrieved": 210
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "464112",
+   "expected": 40,
+   "retrieved": 40
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "311812",
+   "expected": 140,
+   "retrieved": 140
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "461121",
+   "expected": 268,
+   "retrieved": 268
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "461122",
+   "expected": 225,
+   "retrieved": 225
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "467111",
+   "expected": 207,
+   "retrieved": 207
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "462210",
+   "expected": 18,
+   "retrieved": 18
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "722511",
+   "expected": 772,
+   "retrieved": 772
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "722513",
+   "expected": 479,
+   "retrieved": 479
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "722514",
+   "expected": 589,
+   "retrieved": 589
+  },
+  {
+   "borough": "Miguel Hidalgo",
+   "scian_class": "722515",
+   "expected": 723,
+   "retrieved": 723
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "461110",
+   "expected": 1880,
+   "retrieved": 1880
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "462112",
+   "expected": 216,
+   "retrieved": 216
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "462111",
+   "expected": 29,
+   "retrieved": 29
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "464111",
+   "expected": 381,
+   "retrieved": 381
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "464112",
+   "expected": 46,
+   "retrieved": 46
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "311812",
+   "expected": 204,
+   "retrieved": 204
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "461121",
+   "expected": 325,
+   "retrieved": 325
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "461122",
+   "expected": 419,
+   "retrieved": 419
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "467111",
+   "expected": 278,
+   "retrieved": 278
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "462210",
+   "expected": 16,
+   "retrieved": 16
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "722511",
+   "expected": 530,
+   "retrieved": 530
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "722513",
+   "expected": 568,
+   "retrieved": 568
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "722514",
+   "expected": 586,
+   "retrieved": 586
+  },
+  {
+   "borough": "Coyoacán",
+   "scian_class": "722515",
+   "expected": 786,
+   "retrieved": 786
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "461110",
+   "expected": 9502,
+   "retrieved": 9502
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "462112",
+   "expected": 365,
+   "retrieved": 365
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "462111",
+   "expected": 46,
+   "retrieved": 46
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "464111",
+   "expected": 1634,
+   "retrieved": 1634
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "464112",
+   "expected": 192,
+   "retrieved": 192
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "311812",
+   "expected": 831,
+   "retrieved": 831
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "461121",
+   "expected": 1306,
+   "retrieved": 1306
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "461122",
+   "expected": 1604,
+   "retrieved": 1604
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "467111",
+   "expected": 1255,
+   "retrieved": 1255
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "462210",
+   "expected": 31,
+   "retrieved": 31
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "722511",
+   "expected": 529,
+   "retrieved": 529
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "722513",
+   "expected": 1858,
+   "retrieved": 1858
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "722514",
+   "expected": 1787,
+   "retrieved": 1787
+  },
+  {
+   "borough": "Iztapalapa",
+   "scian_class": "722515",
+   "expected": 1508,
+   "retrieved": 1508
+  }
+ ],
+ "transformation_notice": "This independent demonstration transforms and analyzes public INEGI data. The analysis was not produced, reviewed, sponsored, or endorsed by INEGI.",
+ "attribution": "Fuente: INEGI, Directorio Estadístico Nacional de Unidades Económicas (DENUE), 2026-09-11."
+}

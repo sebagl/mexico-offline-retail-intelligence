@@ -1,0 +1,37 @@
+# Render Blueprint - https://render.com/docs/blueprint-spec
+# One Docker-based free web service. The validated DENUE artifacts ship inside
+# the image, so the runtime needs no INEGI token. GEMINI_* values are entered
+# in the Render dashboard (sync: false) and may be left blank to run without
+# generated explanations.
+services:
+  - type: web
+    name: mexico-offline-retail-intelligence
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: EMBEDDING_MODEL
+        value: BAAI/bge-small-en-v1.5
+      - key: FASTEMBED_CACHE_PATH
+        value: /app/.cache/fastembed
+      - key: RETRIEVAL_TOP_K
+        value: "5"
+      - key: RETRIEVAL_MIN_SCORE
+        value: "0.57"
+      - key: MAX_QUESTION_LENGTH
+        value: "500"
+      - key: REQUEST_TIMEOUT_SECONDS
+        value: "30"
+      - key: RATE_LIMIT_REQUESTS
+        value: "20"
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
