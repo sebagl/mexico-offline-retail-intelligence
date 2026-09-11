@@ -244,6 +244,7 @@ class HealthResponse(BaseModel):
     embedding_model: str
     generation_provider: str
     generation_configured: bool
+    generation_last_failure: str | None = None
     fallback_available: bool
 
 

@@ -120,16 +120,31 @@ def test_explanation_problem_rules() -> None:
         metrics={"count": 1234, "percentage": 45.5},
         headline=(1234, 45.5),
     )
-    assert explanation_problem("There are 1,234 establishments (45.5%).", analysis) is None
-    assert explanation_problem("1234 establishments, 45,5 % of them.", analysis) is None  # es-MX forms
-    assert explanation_problem("There are 1,235 establishments (45.5%).", analysis) == "foreign_number"
-    assert explanation_problem("As of 2026, 1,234 establishments (45.5%).", analysis) == "foreign_number"
-    assert explanation_problem("11 of them, 1,234 total (45.5%).", analysis) == "foreign_number"
-    assert explanation_problem("There are 1,234 establishments.", analysis) == "headline_missing"
-    assert explanation_problem("About twelve hundred, 1,234 (45.5%).", analysis) == "spelled_out_number"
-    assert explanation_problem("See www.inegi.org.mx: 1,234 (45.5%).", analysis) == "contains_url"
-    assert explanation_problem("INEGI officially endorses 1,234 (45.5%).", analysis) == "endorsement_language"
-    assert explanation_problem("1,234 (45.5%) " + "x" * 900, analysis) == "too_long"
+    check = lambda text: explanation_problem(text, analysis, context_numbers=(5, 10, 2026))  # noqa: E731
+    assert check("There are 1,234 establishments (45.5%).") is None
+    assert check("1234 establishments, 45,5 % of them.") is None  # es-MX forms
+    assert check("One of the five boroughs holds 1,234 (45.5%) as of 2026.") is None  # context values
+    assert check("Based on official INEGI data: 1,234 (45.5%).") is None  # "official" data is fine
+    assert check("There are 1,235 establishments (45.5%).") == "foreign_number"
+    assert check("As of 11 September, 1,234 establishments (45.5%).") == "foreign_number"
+    assert check("There are 1,234 establishments.") == "headline_missing"
+    assert check("About twelve hundred, 1,234 (45.5%).") == "spelled_out_number"
+    assert check("Roughly three hundred twelve of 1,234 (45.5%).") == "spelled_out_number"
+    assert check("Over half of 1,234 (45.5%).") == "unverifiable_fraction"
+    assert check("See www.inegi.org.mx: 1,234 (45.5%).") == "contains_url"
+    assert check("INEGI officially endorses this: 1,234 (45.5%).") == "endorsement_language"
+    assert check("This is an official INEGI tool: 1,234 (45.5%).") == "endorsement_language"
+    assert check("1,234 (45.5%) " + "x" * 900) == "too_long"
+
+
+def test_spelled_out_numbers_parser() -> None:
+    from app.services.query import spelled_out_numbers
+
+    assert spelled_out_numbers("three hundred twelve stores and twenty-one cafés") == [312, 21]
+    assert spelled_out_numbers("one thousand two hundred") == [1200]
+    assert spelled_out_numbers("veinte panaderías y dos mil restaurantes") == [20, 2000]
+    assert spelled_out_numbers("one of the boroughs, una de las alcaldías") == []
+    assert spelled_out_numbers("the five covered boroughs") == [5]
 
 
 def test_strata_filter_applies_to_every_intent(client) -> None:

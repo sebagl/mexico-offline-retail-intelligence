@@ -172,6 +172,7 @@ def _register_routes(app: FastAPI) -> None:
             embedding_model=state.settings.embedding_model,
             generation_provider=state.generator.provider_name if generation_configured else "none",
             generation_configured=generation_configured,
+            generation_last_failure=state.generation_status.recent_failure,
             fallback_available=state.ready,
         )
         return JSONResponse(

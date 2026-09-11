@@ -32,7 +32,9 @@ def test_health_degraded_after_recent_generation_failure(make_client) -> None:
     assert client.get("/health").json()["status"] == "ok"
     response = client.post("/api/query", json={"question": "How many establishments are in the dataset?"})
     assert response.json()["mode"] == "deterministic"
-    assert client.get("/health").json()["status"] == "degraded"
+    health = client.get("/health").json()
+    assert health["status"] == "degraded"
+    assert health["generation_last_failure"] == "rate_limited"  # category only, never provider detail
 
 
 def test_health_unavailable_when_dataset_missing(make_client, tmp_path: Path) -> None:

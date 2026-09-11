@@ -11,7 +11,7 @@ import asyncio
 import logging
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -31,7 +31,7 @@ from app.schemas import (
 from app.services import analytics
 from app.services.dataset import Dataset
 from app.services.generation import AnswerGenerator, GenerationError
-from app.services.question_parser import ParsedQuestion, parse_question
+from app.services.question_parser import ParsedQuestion, fold, parse_question
 from app.services.retrieval import RetrievalService
 from app.services.status import ProviderStatus
 
@@ -513,7 +513,12 @@ class QueryService:
                 extra={"provider": self._generator.provider_name, "category": exc.category},
             )
             return None
-        problem = explanation_problem(text, analysis)
+        context_numbers = (
+            len(BOROUGHS),
+            len(CATEGORIES),
+            int(self._dataset.manifest.retrieved_at[:4]),
+        )
+        problem = explanation_problem(text, analysis, context_numbers)
         if problem is not None:
             self._generation_status.record_failure(f"explanation_{problem}")
             logger.warning("explanation discarded", extra={"reason": problem})
@@ -583,15 +588,64 @@ class QueryService:
 
 
 _URL_OR_DOMAIN = re.compile(r"https?://|www\.|\b[a-z0-9-]+\.(?:com|org|net|mx|io|gob|edu)\b", re.I)
-_NUMBER_WORDS = re.compile(
-    r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|"
-    r"sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|"
-    r"hundred|thousand|million|dozen|half|quarter|third|"
-    r"uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|veinte|treinta|cuarenta|"
-    r"cincuenta|cien|ciento|mil|millon|millones|docena|mitad|tercio|cuarto)\b",
+# Claims of endorsement or official status for the *analysis*. The bare word
+# "official" is allowed: the data really is official INEGI data.
+_ENDORSEMENT = re.compile(
+    r"endors|certified|certificad|avalad|approved by|aprobad[oa] por|sponsored by|patrocinad|"
+    r"official(?:ly)? (?:approved|recogni[sz]ed|validated|verified)|(?:es|is) (?:un|an) official",
     re.I,
 )
-_ENDORSEMENT = re.compile(r"official|endorse|approved|certified|avalad|oficial", re.I)
+_FRACTION_WORDS = re.compile(
+    r"\b(?:half|halves|quarter|quarters|dozen|dozens|mitad|tercio|docena|docenas|"
+    r"(?:a|one|two|three|un|dos|tres)[- ](?:third|thirds|fifth|fifths|tercios|quintos))\b",
+    re.I,
+)
+_UNITS_EN = [
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+]
+_TENS_EN = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+_UNITS_ES = ["cero", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez"]
+_TENS_ES = ["veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"]
+_NUMBER_WORDS: dict[str, int] = {
+    **{word: value for value, word in enumerate(_UNITS_EN)},
+    **{word: (index + 2) * 10 for index, word in enumerate(_TENS_EN)},
+    **{word: value for value, word in enumerate(_UNITS_ES)},
+    **{word: (index + 2) * 10 for index, word in enumerate(_TENS_ES)},
+    "una": 1,
+    "doce": 12,
+    "trece": 13,
+    "catorce": 14,
+    "quince": 15,
+    "hundred": 100,
+    "cien": 100,
+    "ciento": 100,
+    "thousand": 1_000,
+    "mil": 1_000,
+    "million": 1_000_000,
+    "millon": 1_000_000,
+    "millones": 1_000_000,
+}
+# "one"/"uno"/"una" alone are usually articles or pronouns ("one of the boroughs").
+_ARTICLE_LIKE = frozenset({"one", "uno", "una"})
 MAX_EXPLANATION_CHARS = 900
 
 
@@ -609,29 +663,70 @@ def _digits(text: str) -> str:
     return re.sub(r"[^0-9]", "", text)
 
 
-def explanation_problem(text: str, analysis: Analysis) -> str | None:
+def spelled_out_numbers(text: str) -> list[int]:
+    """Values written in words ("three hundred twelve", "veinte"), English and Spanish.
+
+    A lone "one"/"uno"/"una" is ignored because it is almost always an article.
+    """
+    words = re.findall(r"[a-z]+", fold(text))
+    values: list[int] = []
+    run: list[str] = []
+
+    def flush() -> None:
+        if not run or (len(run) == 1 and run[0] in _ARTICLE_LIKE):
+            run.clear()
+            return
+        total = current = 0
+        for word in run:
+            value = _NUMBER_WORDS[word]
+            if value == 100:
+                current = max(current, 1) * 100
+            elif value >= 1_000:
+                total += max(current, 1) * value
+                current = 0
+            else:
+                current += value
+        values.append(total + current)
+        run.clear()
+
+    for word in words:
+        if word in _NUMBER_WORDS:
+            run.append(word)
+        elif word in {"and", "y"} and run:
+            continue
+        else:
+            flush()
+    flush()
+    return values
+
+
+def explanation_problem(text: str, analysis: Analysis, context_numbers: Iterable[float] = ()) -> str | None:
     """Return why a generated explanation must be discarded, or ``None`` if it is faithful.
 
-    Only calculated values (``metrics`` and the deterministic answer) may appear as
-    numbers; every headline value must appear; no spelled-out numbers, URLs or
-    endorsement language; bounded length. Timestamps and catalog labels are
-    deliberately not part of the allowed set.
+    Numbers in the reply — written in digits or in words — must be calculated
+    values (``metrics`` and the deterministic answer) or known context values
+    (scope sizes, the retrieval year); every headline value must appear; no
+    fractions in words, URLs or endorsement claims; bounded length.
     """
     if len(text) > MAX_EXPLANATION_CHARS:
         return "too_long"
     if _URL_OR_DOMAIN.search(text):
         return "contains_url"
-    if _NUMBER_WORDS.search(text):
-        return "spelled_out_number"
     if _ENDORSEMENT.search(text):
         return "endorsement_language"
+    if _FRACTION_WORDS.search(text):
+        return "unverifiable_fraction"
 
-    allowed: set[str] = set()
-    for match in _NUMBER.findall(_flatten(analysis.metrics) + " " + analysis.answer):
-        allowed |= {_digits(form) for form in _number_forms(float(match.replace(",", "")))}
+    allowed_values = {float(match.replace(",", "")) for match in _NUMBER.findall(_flatten(analysis.metrics))}
+    allowed_values |= {float(match.replace(",", "")) for match in _NUMBER.findall(analysis.answer)}
+    allowed_values |= {float(value) for value in context_numbers}
+    allowed_digits = {_digits(form) for value in allowed_values for form in _number_forms(value)}
     for match in _NUMBER.findall(text):
-        if _digits(match) not in allowed:
+        if _digits(match) not in allowed_digits:
             return "foreign_number"
+    for value in spelled_out_numbers(text):
+        if float(value) not in allowed_values:
+            return "spelled_out_number"
     for value in analysis.headline:
         if not any(form in text for form in _number_forms(value)):
             return "headline_missing"

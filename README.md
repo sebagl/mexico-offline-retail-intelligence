@@ -1,5 +1,7 @@
 # Mexico Offline Retail Intelligence
 
+[![CI](https://github.com/sebagl/mexico-offline-retail-intelligence/actions/workflows/ci.yml/badge.svg)](https://github.com/sebagl/mexico-offline-retail-intelligence/actions/workflows/ci.yml)
+
 Explore Mexico City's physical retail landscape using open establishment data from INEGI DENUE.
 
 > **Fuente: INEGI, Directorio Estadístico Nacional de Unidades Económicas (DENUE), 2026-09-11.** (Date of the API retrieval that produced the committed dataset; the latest record registration date observed in the retrieved records is 2026-04. Both are stored in `data/manifest.json`.)
@@ -149,7 +151,7 @@ Set `GEMINI_API_KEY` and `GEMINI_MODEL` (no model is hard-coded). Optionally set
 
 > Use only the supplied structured analysis and retrieved evidence. Every numeric value has already been calculated by the application and must be reproduced exactly. Do not calculate, estimate, correct, or replace any value. Do not use outside knowledge.
 
-Guard-rails (`explanation_problem` in `app/services/query.py`): Gemini is only called for supported, sufficient questions; the prompt carries the structured analysis and the question in a delimited "data, not instructions" block — retrieved evidence and establishment names are *not* sent; the reply is discarded (and the deterministic answer used) if it contains a number absent from the calculated metrics, omits the headline value, spells numbers out in words, contains a URL/domain or endorsement language, or exceeds 900 characters; timeouts, rate limits, quota exhaustion, invalid credentials, unavailable models, malformed and empty responses all fall back. Discards are logged with a reason and surface in `/health` as `degraded`. Token usage is logged per call. The key never leaves the backend and is never logged.
+Guard-rails (`explanation_problem` in `app/services/query.py`): Gemini is only called for supported, sufficient questions; the prompt carries the structured analysis and the question in a delimited "data, not instructions" block — retrieved evidence and establishment names are *not* sent; the reply is discarded (and the deterministic answer used) if it contains a number — in digits or in words — that is not a calculated value or a known context value (scope sizes, retrieval year), omits the headline value, uses unverifiable fractions ("over half"), contains a URL/domain or an endorsement claim, or exceeds 900 characters; timeouts, rate limits, quota exhaustion, invalid credentials, unavailable models, malformed and empty responses all fall back. Discards are logged with a reason and surface in `/health` as `degraded`. Token usage is logged per call. The key never leaves the backend and is never logged.
 
 ## 9. Local fallback
 
@@ -189,7 +191,7 @@ Open <http://localhost:8000>. Endpoints:
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /` | Web application |
-| `GET /health` | `ok` (dataset loaded; Gemini optional), `degraded` (configured Gemini failed recently), `unavailable` (HTTP 503, dataset not loaded); dataset counts, completeness, embedding model, Gemini configured, fallback availability |
+| `GET /health` | `ok` (dataset loaded; Gemini optional), `degraded` (configured Gemini failed recently — `generation_last_failure` names the category, e.g. `rate_limited` or `explanation_foreign_number`), `unavailable` (HTTP 503, dataset not loaded); dataset counts, completeness, embedding model, Gemini configured, fallback availability |
 | `GET /api/source` | Source name/URL, attribution, retrieval date, latest record date, scope, completeness, failed scopes, transformation notice |
 | `GET /api/summary` | Aggregate counts for the dashboard |
 | `POST /api/query` | `{"question": "..."}` → answer, mode, intent, metrics, filters, evidence, source, scope, methodology, attribution |
