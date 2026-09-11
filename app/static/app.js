@@ -633,6 +633,10 @@
       $("stat-total").textContent = formatNumber(total);
       $("stat-boroughs").textContent = formatNumber(boroughs.length);
       $("stat-categories").textContent = formatNumber(categories.length);
+      // The scope shown under the question box comes from the dataset itself, so a
+      // reconfigured ingestion never leaves the page describing the wrong coverage.
+      $("scope-boroughs").textContent = joinNames(boroughs.map(function (b) { return b.name; }), "and");
+      $("scope-categories").textContent = joinNames(categories.map(function (c) { return lower(c.label_en); }), "and");
 
       const retrieved = typeof s.retrieved_at === "string" ? s.retrieved_at.slice(0, 10) : "unknown date";
       const coverage = s.complete
@@ -657,6 +661,8 @@
       if (typeof s.attribution === "string") $("footer-attribution").textContent = s.attribution;
     } catch (_error) {
       $("dataset-meta").textContent = "Dataset information is not available right now.";
+      $("scope-boroughs").textContent = "the configured Mexico City boroughs";
+      $("scope-categories").textContent = "the configured retail categories";
     }
   }
 
