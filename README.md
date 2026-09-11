@@ -262,6 +262,10 @@ Snapshot data (no scheduled refresh); five boroughs and ten categories; rule-bas
 
 PostgreSQL + pgvector for records and vectors; scheduled incremental DENUE refresh with change tracking; queue-based ingestion; authentication, authorization and multi-tenant isolation; Redis rate limiting behind an API gateway; dataset and prompt versioning; distributed tracing and retrieval metrics; feedback capture, automated evaluations and human review; a secret manager; horizontal scaling.
 
+## 21. License
+
+The source code is released under the [MIT License](LICENSE). The establishment data in `data/` is derived from INEGI DENUE and remains subject to INEGI's *Términos de Libre Uso*; keep the attribution when reusing it.
+
 ---
 
 *This project was designed and implemented by Sebastian Gonzalez Lonzieme as a focused technical demonstration. AI-assisted development tools were used as part of the development workflow, while architectural decisions, scope, validation, and final code ownership remained with the author.*
